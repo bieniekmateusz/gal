@@ -22,33 +22,48 @@ from al_for_fep.configs.simple_greedy_gaussian_process import get_config as get_
 import ncl_cycle
 from ncl_cycle import MatCycle
 
+oracle = pd.read_csv("oracle.csv")
+def ask_oracle(chosen_ones, virtual_lib):
+    # check and return all the values for the smiles
+    # look up and overwrite the values in place
+
+    # look the up by smiles
+    oracle_has_spoken = chosen_ones.merge(oracle, on=['Smiles'])
+    # get the correct affinities
+    chosen_ones.cnnaffinity = oracle_has_spoken.cnnaffinity_y.values
+    # update the main dataframe
+    virtual_library.update(chosen_ones)
 
 if __name__ == '__main__':
     config = get_gaussian_process_config()
-    config.training_pool = "start_20_random.csv"
-    config.virtual_library = "cnnaffinity_smiles_small.csv"
-    config.selection_config.num_elements = 3    # how many new to select
+    config.training_pool = "prechosen_ones_10_random.csv"
+    config.virtual_library = "small.csv"
+    config.selection_config.num_elements = 5    # how many new to select
     config.selection_config.selection_columns = ["cnnaffinity", "Smiles"]
     config.model_config.targets.params.feature_column = 'cnnaffinity'
 
     AL = MatCycle(config)
     virtual_library = AL.get_virtual_library()
 
-    for cycle_id in range(1):
-        print(f"Lib size: {len(virtual_library)} with training size: {len(virtual_library[virtual_library.Training])}")
-        selections, virtual_library_regression = AL.run_cycle(virtual_library)
+    for cycle_id in range(3):
+        print(f"Lib size: {len(virtual_library)} "
+              f"with training size: {len(virtual_library[virtual_library.Training])} and "
+              f"cnnaffinity 0: {len(virtual_library[virtual_library.cnnaffinity == 0])}")
+        chosen_ones, virtual_library_regression = AL.run_cycle(virtual_library)
 
         # the new selections are now also part of the training set
-        virtual_library_regression.loc[selections.index, ncl_cycle.TRAINING_KEY] = True
+        virtual_library_regression.loc[chosen_ones.index, ncl_cycle.TRAINING_KEY] = True
 
+        ask_oracle(chosen_ones, virtual_library_regression)
         # TODO no conformers? penalise
 
         # expand the virtual library
-        new_record = pd.DataFrame([{'Smiles': "CN(C(=O)c1cn(C)nc1-c1ccc(F)cc1F)c1nc2ccccc2n1C", ncl_cycle.TRAINING_KEY: False}])
-        expanded_library = pd.concat([virtual_library_regression, new_record], ignore_index=True)
-        virtual_library = expanded_library
+        if len(virtual_library[virtual_library.Smiles == "CN(C(=O)c1cn(C)nc1-c1ccc(F)cc1F)c1nc2ccccc2n1C"]) == 0:
+            new_record = pd.DataFrame([{'Smiles': "CN(C(=O)c1cn(C)nc1-c1ccc(F)cc1F)c1nc2ccccc2n1C", ncl_cycle.TRAINING_KEY: False}])
+            expanded_library = pd.concat([virtual_library_regression, new_record], ignore_index=True)
+            virtual_library = expanded_library
 
         cycle_dir = Path(f"generated/cycle_{cycle_id}")
         cycle_dir.mkdir(exist_ok=True, parents=True)
         virtual_library.to_csv(cycle_dir / 'virtual_library_with_predictions.csv', index=False)
-        selections.to_csv(cycle_dir / "selection.csv", columns=config.selection_config.selection_columns, index=False)
+        chosen_ones.to_csv(cycle_dir / "selection.csv", columns=config.selection_config.selection_columns, index=False)
