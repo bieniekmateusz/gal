@@ -26,8 +26,8 @@ from ncl_cycle import MatCycle
 
 if __name__ == '__main__':
     config = get_gaussian_process_config()
-    config.training_pool = "basic_loop/initial_training_set.csv"
-    config.virtual_library = "basic_loop/virtual_library.csv"
+    config.training_pool = "initial_training_set.csv"
+    config.virtual_library = "virtual_library.csv"
     config.selection_config.num_elements = 3    # how many new to select
 
     AL = MatCycle(config)
@@ -48,6 +48,6 @@ if __name__ == '__main__':
         virtual_library = expanded_library
 
         cycle_dir = Path(f"generated/cycle_{cycle_id}")
-        cycle_dir.mkdir(exist_ok=True)
+        cycle_dir.mkdir(exist_ok=True, parents=True)
         virtual_library.to_csv(cycle_dir / 'virtual_library_with_predictions.csv', index=False)
         selections.to_csv(cycle_dir / "selection.csv", columns=config.selection_config.selection_columns, index=False)
