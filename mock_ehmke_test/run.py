@@ -14,7 +14,7 @@
 # limitations under the License.
 
 """Entry point for running a single cycle of active learning."""
-
+import time
 import pandas as pd
 from pathlib import Path
 
@@ -23,7 +23,10 @@ import ncl_cycle
 from ncl_cycle import MatCycle
 
 oracle = pd.read_csv("oracle.csv")
-def ask_oracle(chosen_ones, virtual_lib):
+oracle.sort_values(by='cnnaffinity', ascending=False, inplace=True)
+# find 5% best values cutoff
+cutoff = oracle[int(-0.01*len(oracle)):].cnnaffinity.values[0]
+def ask_oracle(chosen_ones, virtual_library):
     # check and return all the values for the smiles
     # look up and overwrite the values in place
 
@@ -31,24 +34,31 @@ def ask_oracle(chosen_ones, virtual_lib):
     oracle_has_spoken = chosen_ones.merge(oracle, on=['Smiles'])
     # get the correct affinities
     chosen_ones.cnnaffinity = oracle_has_spoken.cnnaffinity_y.values
+    # print('Found', chosen_ones.cnnaffinity.values)
     # update the main dataframe
     virtual_library.update(chosen_ones)
+
+def report(virtual_library, start_time):
+    # select only the ones that have been chosen before
+    best_finds = virtual_library[virtual_library.cnnaffinity > cutoff]
+    print(f"IT: {cycle_id},Lib size: {len(virtual_library)} "
+          f"with training size: {len(virtual_library[virtual_library.Training])} and "
+          f"cnnaffinity 0: {len(virtual_library[virtual_library.cnnaffinity == 0])}, "
+          f"within cutoff 1% {len(best_finds)}, time: {time.time() - start_time}")
 
 if __name__ == '__main__':
     config = get_gaussian_process_config()
     config.training_pool = "prechosen_ones_10_random.csv"
-    config.virtual_library = "small.csv"
-    config.selection_config.num_elements = 5    # how many new to select
+    config.virtual_library = "large.csv"
+    config.selection_config.num_elements = 30    # how many new to select
     config.selection_config.selection_columns = ["cnnaffinity", "Smiles"]
     config.model_config.targets.params.feature_column = 'cnnaffinity'
 
     AL = MatCycle(config)
     virtual_library = AL.get_virtual_library()
 
-    for cycle_id in range(3):
-        print(f"Lib size: {len(virtual_library)} "
-              f"with training size: {len(virtual_library[virtual_library.Training])} and "
-              f"cnnaffinity 0: {len(virtual_library[virtual_library.cnnaffinity == 0])}")
+    for cycle_id in range(30):
+        start_time = time.time()
         chosen_ones, virtual_library_regression = AL.run_cycle(virtual_library)
 
         # the new selections are now also part of the training set
@@ -67,3 +77,5 @@ if __name__ == '__main__':
         cycle_dir.mkdir(exist_ok=True, parents=True)
         virtual_library.to_csv(cycle_dir / 'virtual_library_with_predictions.csv', index=False)
         chosen_ones.to_csv(cycle_dir / "selection.csv", columns=config.selection_config.selection_columns, index=False)
+
+        report(virtual_library, start_time)
