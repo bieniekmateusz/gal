@@ -47,7 +47,7 @@ if __name__ == '__main__':
         expanded_library = pd.concat([virtual_library_regression, new_record], ignore_index=True)
         virtual_library = expanded_library
 
-        cycle_dir = Path(f"cycle_{cycle_id}")
+        cycle_dir = Path(f"generated/cycle_{cycle_id}")
         cycle_dir.mkdir(exist_ok=True)
         virtual_library.to_csv(cycle_dir / 'virtual_library_with_predictions.csv', index=False)
         selections.to_csv(cycle_dir / "selection.csv", columns=config.selection_config.selection_columns, index=False)
