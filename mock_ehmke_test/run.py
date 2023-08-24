@@ -15,6 +15,7 @@
 
 """Entry point for running a single cycle of active learning."""
 import time
+import re
 import pandas as pd
 from pathlib import Path
 
@@ -25,7 +26,7 @@ from ncl_cycle import MatCycle
 oracle = pd.read_csv("oracle.csv")
 oracle.sort_values(by='cnnaffinity', ascending=False, inplace=True)
 # find 5% best values cutoff
-cutoff = oracle[int(-0.01*len(oracle)):].cnnaffinity.values[0]
+cutoff = oracle[:int(0.05*len(oracle))].cnnaffinity.values[0]
 def ask_oracle(chosen_ones, virtual_library):
     # check and return all the values for the smiles
     # look up and overwrite the values in place
@@ -41,14 +42,18 @@ def ask_oracle(chosen_ones, virtual_library):
 def report(virtual_library, start_time):
     # select only the ones that have been chosen before
     best_finds = virtual_library[virtual_library.cnnaffinity > cutoff]
-    print(f"IT: {cycle_id},Lib size: {len(virtual_library)} "
-          f"with training size: {len(virtual_library[virtual_library.Training])} and "
+    print(f"IT: {cycle_id},Lib size: {len(virtual_library)}, "
+          f"training size: {len(virtual_library[virtual_library.Training])}, "
           f"cnnaffinity 0: {len(virtual_library[virtual_library.cnnaffinity == 0])}, "
-          f"within cutoff 1% {len(best_finds)}, time: {time.time() - start_time}")
+          f">{cutoff} cnnaff: {len(best_finds)}, "
+          f"time: {time.time() - start_time}")
 
 if __name__ == '__main__':
+    output = Path('generated')
+    previous_trainings = list(map(str, output.glob('cycle_*/selection.csv')))
+
     config = get_gaussian_process_config()
-    config.training_pool = "prechosen_ones_10_random.csv"
+    config.training_pool = ','.join(["prechosen_ones_10_random.csv"] + previous_trainings)
     config.virtual_library = "large.csv"
     config.selection_config.num_elements = 30    # how many new to select
     config.selection_config.selection_columns = ["cnnaffinity", "Smiles"]
@@ -57,7 +62,11 @@ if __name__ == '__main__':
     AL = MatCycle(config)
     virtual_library = AL.get_virtual_library()
 
-    for cycle_id in range(30):
+    cycle_start = 0
+    if previous_trainings:
+        cycle_start = max(int(re.findall("[\d]+", cycle)[0]) for cycle in previous_trainings)
+
+    for cycle_id in range(cycle_start, 400):
         start_time = time.time()
         chosen_ones, virtual_library_regression = AL.run_cycle(virtual_library)
 
