@@ -11,7 +11,7 @@ last = max(int(re.findall("[\d]+", cycle)[0]) for cycle in previous_trainings)
 
 means = []
 for i in range(last+1):
-    selection = pd.read_csv(f"generated/cycle_{i}/selection.csv")
+    selection = pd.read_csv(f"generated/cycle_{i:04d}/selection.csv")
     print(f'Cycle {i:4d}. Mean: {selection.cnnaffinity.mean():4f}, SD: {selection.cnnaffinity.std():4f}, Min: {selection.cnnaffinity.min():4f}, Max: {selection.cnnaffinity.max():4f}')
     means.append(selection.cnnaffinity.mean())
     # plt.hist(selection.cnnaffinity, alpha=0.5)

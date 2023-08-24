@@ -17,6 +17,7 @@
 import time
 import re
 import pandas as pd
+import numpy as np
 from pathlib import Path
 
 from al_for_fep.configs.simple_greedy_gaussian_process import get_config as get_gaussian_process_config
@@ -35,7 +36,7 @@ def ask_oracle(chosen_ones, virtual_library):
     oracle_has_spoken = chosen_ones.merge(oracle, on=['Smiles'])
     # get the correct affinities
     chosen_ones.cnnaffinity = -oracle_has_spoken.cnnaffinity_y.values
-    # print('Found', chosen_ones.cnnaffinity.values)
+    assert np.all(chosen_ones.Smiles.values == oracle_has_spoken.Smiles.values)
     # update the main dataframe
     virtual_library.update(chosen_ones)
 
@@ -55,7 +56,7 @@ if __name__ == '__main__':
     config = get_gaussian_process_config()
     config.training_pool = ','.join(["prechosen_ones_10_random.csv"] + previous_trainings)
     config.virtual_library = "large.csv"
-    config.selection_config.num_elements = 30    # how many new to select
+    config.selection_config.num_elements = 100    # how many new to select
     config.selection_config.selection_columns = ["cnnaffinity", "Smiles"]
     config.model_config.targets.params.feature_column = 'cnnaffinity'
 
@@ -72,15 +73,14 @@ if __name__ == '__main__':
 
         # the new selections are now also part of the training set
         virtual_library_regression.loc[chosen_ones.index, ncl_cycle.TRAINING_KEY] = True
-
-        ask_oracle(chosen_ones, virtual_library_regression)
-        # TODO no conformers? penalise
+        ask_oracle(chosen_ones, virtual_library_regression)  # TODO no conformers? penalise
+        virtual_library = virtual_library_regression
 
         # expand the virtual library
-        if len(virtual_library[virtual_library.Smiles == "CN(C(=O)c1cn(C)nc1-c1ccc(F)cc1F)c1nc2ccccc2n1C"]) == 0:
-            new_record = pd.DataFrame([{'Smiles': "CN(C(=O)c1cn(C)nc1-c1ccc(F)cc1F)c1nc2ccccc2n1C", ncl_cycle.TRAINING_KEY: False}])
-            expanded_library = pd.concat([virtual_library_regression, new_record], ignore_index=True)
-            virtual_library = expanded_library
+        # if len(virtual_library[virtual_library.Smiles == "CN(C(=O)c1cn(C)nc1-c1ccc(F)cc1F)c1nc2ccccc2n1C"]) == 0:
+        #     new_record = pd.DataFrame([{'Smiles': "CN(C(=O)c1cn(C)nc1-c1ccc(F)cc1F)c1nc2ccccc2n1C", ncl_cycle.TRAINING_KEY: False}])
+        #     expanded_library = pd.concat([virtual_library_regression, new_record], ignore_index=True)
+        #     virtual_library = expanded_library
 
         cycle_dir = Path(f"generated/cycle_{cycle_id:04d}")
         cycle_dir.mkdir(exist_ok=True, parents=True)
