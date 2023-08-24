@@ -28,6 +28,7 @@ oracle = pd.read_csv("oracle.csv")
 oracle.sort_values(by='cnnaffinity', ascending=False, inplace=True)
 # find 5% best values cutoff
 cutoff = oracle[:int(0.05*len(oracle))].cnnaffinity.values[0]
+
 def ask_oracle(chosen_ones, virtual_library):
     # check and return all the values for the smiles
     # look up and overwrite the values in place
@@ -42,16 +43,17 @@ def ask_oracle(chosen_ones, virtual_library):
 
 def report(virtual_library, start_time):
     # select only the ones that have been chosen before
-    best_finds = virtual_library[virtual_library.cnnaffinity > cutoff]
+    best_finds = virtual_library[virtual_library.cnnaffinity < -6]  #-6 is about 5% of the best cases
     print(f"IT: {cycle_id},Lib size: {len(virtual_library)}, "
           f"training size: {len(virtual_library[virtual_library.Training])}, "
           f"cnnaffinity 0: {len(virtual_library[virtual_library.cnnaffinity == 0])}, "
-          f">{cutoff} cnnaff: {len(best_finds)}, "
+          f"<-6 cnnaff: {len(best_finds)}, "
           f"time: {time.time() - start_time}")
 
 if __name__ == '__main__':
     output = Path('generated')
     previous_trainings = list(map(str, output.glob('cycle_*/selection.csv')))
+    print('Attaching trainings:', previous_trainings)
 
     config = get_gaussian_process_config()
     config.training_pool = ','.join(["prechosen_ones_10_random.csv"] + previous_trainings)
