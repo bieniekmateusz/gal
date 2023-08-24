@@ -61,6 +61,7 @@ if __name__ == '__main__':
     config.selection_config.num_elements = 100    # how many new to select
     config.selection_config.selection_columns = ["cnnaffinity", "Smiles"]
     config.model_config.targets.params.feature_column = 'cnnaffinity'
+    config.model_config.features.params.fingerprint_size = 2048
 
     AL = ALCycler(config)
     virtual_library = AL.get_virtual_library()
