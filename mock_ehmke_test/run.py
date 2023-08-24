@@ -34,7 +34,7 @@ def ask_oracle(chosen_ones, virtual_library):
     # look the up by smiles
     oracle_has_spoken = chosen_ones.merge(oracle, on=['Smiles'])
     # get the correct affinities
-    chosen_ones.cnnaffinity = oracle_has_spoken.cnnaffinity_y.values
+    chosen_ones.cnnaffinity = -oracle_has_spoken.cnnaffinity_y.values
     # print('Found', chosen_ones.cnnaffinity.values)
     # update the main dataframe
     virtual_library.update(chosen_ones)
@@ -82,7 +82,7 @@ if __name__ == '__main__':
             expanded_library = pd.concat([virtual_library_regression, new_record], ignore_index=True)
             virtual_library = expanded_library
 
-        cycle_dir = Path(f"generated/cycle_{cycle_id}")
+        cycle_dir = Path(f"generated/cycle_{cycle_id:04d}")
         cycle_dir.mkdir(exist_ok=True, parents=True)
         virtual_library.to_csv(cycle_dir / 'virtual_library_with_predictions.csv', index=False)
         chosen_ones.to_csv(cycle_dir / "selection.csv", columns=config.selection_config.selection_columns, index=False)
