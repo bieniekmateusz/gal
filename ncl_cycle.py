@@ -10,7 +10,7 @@ from al_for_fep.utils import utils
 
 TRAINING_KEY = 'Training'
 
-class MatCycle(single_cycle_lib.MakitaCycle):
+class ALCycler(single_cycle_lib.MakitaCycle):
 
     def get_virtual_library(self):
         """Helper function to determine train/selection split."""

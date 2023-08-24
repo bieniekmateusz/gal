@@ -22,7 +22,7 @@ from pathlib import Path
 
 from al_for_fep.configs.simple_greedy_gaussian_process import get_config as get_gaussian_process_config
 import ncl_cycle
-from ncl_cycle import MatCycle
+from ncl_cycle import ALCycler
 
 oracle = pd.read_csv("oracle.csv")
 oracle.sort_values(by='cnnaffinity', ascending=False, inplace=True)
@@ -62,7 +62,7 @@ if __name__ == '__main__':
     config.selection_config.selection_columns = ["cnnaffinity", "Smiles"]
     config.model_config.targets.params.feature_column = 'cnnaffinity'
 
-    AL = MatCycle(config)
+    AL = ALCycler(config)
     virtual_library = AL.get_virtual_library()
 
     cycle_start = 0

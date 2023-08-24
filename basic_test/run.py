@@ -21,7 +21,7 @@ from pathlib import Path
 
 from al_for_fep.configs.simple_greedy_gaussian_process import get_config as get_gaussian_process_config
 import ncl_cycle
-from ncl_cycle import MatCycle
+from ncl_cycle import ALCycler
 
 
 if __name__ == '__main__':
@@ -30,7 +30,7 @@ if __name__ == '__main__':
     config.virtual_library = "virtual_library.csv"
     config.selection_config.num_elements = 3    # how many new to select
 
-    AL = MatCycle(config)
+    AL = ALCycler(config)
     virtual_library = AL.get_virtual_library()
 
     for cycle_id in range(2):
