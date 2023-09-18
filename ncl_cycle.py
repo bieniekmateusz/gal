@@ -12,7 +12,7 @@ TRAINING_KEY = 'Training'
 
 class ALCycler(single_cycle_lib.MakitaCycle):
 
-    def get_virtual_library(self):
+    def get_virtual_library(self, initial_values):
         """Helper function to determine train/selection split."""
         feature_column = self._cycle_config.model_config.features.params['feature_column']
         target_column = self._cycle_config.model_config.targets.params['feature_column']
@@ -20,6 +20,8 @@ class ALCycler(single_cycle_lib.MakitaCycle):
         virtual_lib = pd.read_csv(self._cycle_config.virtual_library)
 
         training_pool_ids = []
+        if len(initial_values) > 0:
+            training_pool_ids = [initial_values[[feature_column]]]
         for fileglob in self._cycle_config.training_pool.split(','):
             for filename in glob.glob(fileglob):
                 training_pool_ids.append(pd.read_csv(filename)[[feature_column]])
@@ -33,6 +35,10 @@ class ALCycler(single_cycle_lib.MakitaCycle):
         virtual_lib[TRAINING_KEY] = virtual_lib[feature_column].isin(
             training_pool_ids[feature_column].values
         ) & ~virtual_lib[target_column].isna()
+
+        # initiate the virtual lib
+        for i, row in initial_values.iterrows():
+            virtual_lib.loc[virtual_lib.Smiles == row.Smiles, 'cnnaffinity'] = row.cnnaffinity
 
         return virtual_lib
 

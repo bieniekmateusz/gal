@@ -25,17 +25,16 @@ from ncl_cycle import ALCycler
 
 
 class AL:
-    def __init__(self, config, initial_points=[]):
+    def __init__(self, config, initial_values=pd.DataFrame()):
         previous_trainings = list(map(str, Path('generated').glob('cycle_*/selection.csv')))
 
         # specify training
-        # config.training_pool = ','.join(["init.csv"] + previous_trainings)
-        config.training_pool = ','.join(previous_trainings)
+        config.training_pool = ','.join([config.training_pool] + previous_trainings)
         print('Using trainings: ', config.training_pool)
 
         self.cycle = len(previous_trainings)
         self.cycler = ALCycler(config)
-        self.virtual_library = self.cycler.get_virtual_library(initial_points)
+        self.virtual_library = self.cycler.get_virtual_library(initial_values)
 
     def report(self):
         # select only the ones that have been chosen before
@@ -83,13 +82,13 @@ def compute_fegrow(smiles):
 
 if __name__ == '__main__':
     config = get_gaussian_process_config()
-    config.virtual_library = "chemical_space_500.csv"
-    config.selection_config.num_elements = 20  # how many new to select
+    config.virtual_library = "chemical_space.csv"
+    config.selection_config.num_elements = 100  # how many new to select
     config.selection_config.selection_columns = ["cnnaffinity", "Smiles"]
     config.model_config.targets.params.feature_column = 'cnnaffinity'
     config.model_config.features.params.fingerprint_size = 2048
 
-    # initial datapoints
+    # prep initial datapoints
     random_starter = pd.read_csv(config.virtual_library).sample(20)
     for i, row in random_starter.iterrows():
         result = compute_fegrow(row.Smiles)
