@@ -1,6 +1,7 @@
 import glob
 import functools
 import pandas as pd
+import numpy as np
 
 from modAL import models
 
@@ -12,7 +13,7 @@ TRAINING_KEY = 'Training'
 
 class ALCycler(single_cycle_lib.MakitaCycle):
 
-    def get_virtual_library(self, initial_values):
+    def get_virtual_library(self):
         """Helper function to determine train/selection split."""
         feature_column = self._cycle_config.model_config.features.params['feature_column']
         target_column = self._cycle_config.model_config.targets.params['feature_column']
@@ -20,14 +21,21 @@ class ALCycler(single_cycle_lib.MakitaCycle):
         virtual_lib = pd.read_csv(self._cycle_config.virtual_library)
 
         training_pool_ids = []
-        if len(initial_values) > 0:
-            training_pool_ids = [initial_values[[feature_column]]]
         for fileglob in self._cycle_config.training_pool.split(','):
             for filename in glob.glob(fileglob):
                 training_pool_ids.append(pd.read_csv(filename)[[feature_column]])
-        training_pool_ids = pd.concat(training_pool_ids)
+        if training_pool_ids:
+            training_pool_ids = pd.concat(training_pool_ids)
+        else:
+            training_pool_ids = pd.DataFrame({'Smiles': []})
 
         selection_columns = self._cycle_config.selection_config.selection_columns
+
+        for column in selection_columns:
+            if column not in virtual_lib.columns:
+                #
+                virtual_lib[column] = np.nan
+
         columns_to_keep = list(
             set(selection_columns + [feature_column, target_column]))
         virtual_lib = virtual_lib[columns_to_keep].drop_duplicates()
@@ -35,10 +43,6 @@ class ALCycler(single_cycle_lib.MakitaCycle):
         virtual_lib[TRAINING_KEY] = virtual_lib[feature_column].isin(
             training_pool_ids[feature_column].values
         ) & ~virtual_lib[target_column].isna()
-
-        # initiate the virtual lib
-        for i, row in initial_values.iterrows():
-            virtual_lib.loc[virtual_lib.Smiles == row.Smiles, 'cnnaffinity'] = row.cnnaffinity
 
         return virtual_lib
 
