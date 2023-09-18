@@ -61,7 +61,7 @@ class ActiveLearner:
         self.cycle += 1
         return chosen_ones
 
-    def set_answer(self, chosen_ones, smiles, result):
+    def set_answer(self, smiles, result):
         # add this result
         self.virtual_library.loc[self.virtual_library.Smiles == smiles, 'cnnaffinity'] = result['cnnaffinity']
         # mark for future training
@@ -103,8 +103,8 @@ if __name__ == '__main__':
         chosen_ones = al.get_next_best()
         for i, row in chosen_ones.iterrows():
             result = compute_fegrow(row.Smiles)  # TODO no conformers? penalise
-            al.set_answer(chosen_ones, row.Smiles, result)
-            # update for stats
+            al.set_answer(row.Smiles, result)
+            # update for record keeping
             chosen_ones.at[i, 'cnnaffinity'] = result['cnnaffinity']
         al.csv_cycle_summary(chosen_ones)
 
