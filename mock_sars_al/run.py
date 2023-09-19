@@ -16,7 +16,6 @@
 """Entry point for running a single cycle of active learning."""
 import time
 import pandas as pd
-import numpy as np
 from pathlib import Path
 
 from al_for_fep.configs.simple_greedy_gaussian_process import get_config as get_gaussian_process_config
@@ -39,9 +38,9 @@ class ActiveLearner:
     def report(self):
         # select only the ones that have been chosen before
         best_finds = self.virtual_library[self.virtual_library.cnnaffinity < -6]  # -6 is about 5% of the best cases
-        print(f"IT: {self.cycle},Lib size: {len(self.virtual_library)}, "
-              f"training size: {len(self.virtual_library[self.virtual_library.Training])}, "
-              f"cnnaffinity 0: {len(self.virtual_library[self.virtual_library.cnnaffinity == 0])}, "
+        print(f"IT: {self.cycle}, lib: {len(self.virtual_library)}, "
+              f"training: {len(self.virtual_library[self.virtual_library.Training])}, "
+              f"cnnaffinity no: {len(self.virtual_library[~self.virtual_library.cnnaffinity.isna()])}, "
               f"<-6 cnnaff: {len(best_finds)}")
 
     def get_next_best(self):
@@ -67,14 +66,6 @@ class ActiveLearner:
         # mark for future training
         self.virtual_library.loc[self.virtual_library.Smiles == smiles, ncl_cycle.TRAINING_KEY] = True
 
-    def expand_chemical_space(self):
-        pass
-        # expand the virtual library
-        # if len(virtual_library[virtual_library.Smiles == "CN(C(=O)c1cn(C)nc1-c1ccc(F)cc1F)c1nc2ccccc2n1C"]) == 0:
-        #     new_record = pd.DataFrame([{'Smiles': "CN(C(=O)c1cn(C)nc1-c1ccc(F)cc1F)c1nc2ccccc2n1C", ncl_cycle.TRAINING_KEY: False}])
-        #     expanded_library = pd.concat([virtual_library_regression, new_record], ignore_index=True)
-        #     virtual_library = expanded_library
-
     def csv_cycle_summary(self, chosen_ones):
         cycle_dir = Path(f"generated/cycle_{self.cycle:04d}")
         cycle_dir.mkdir(exist_ok=True, parents=True)
@@ -89,6 +80,19 @@ def compute_fegrow(smiles):
     return {'cnnaffinity': result.cnnaffinity.values[0]}
 
 
+def expand_chemical_space(al):
+    """
+    For now, add up to a 100 of new random smiles as datapoints.
+    """
+    extras = oracle.sample(100).drop(columns=['cnnaffinity'], axis=1)
+    not_yet_in = extras[~extras.Smiles.isin(al.virtual_library.Smiles.values)]
+    not_yet_in = not_yet_in.assign(Training=False)   # fixme: this will break if we use a different keyword
+    print(f'Adding {len(not_yet_in)} smiles out of 100')
+
+    extended = pd.concat([al.virtual_library, not_yet_in], ignore_index=True)
+    al.virtual_library = extended
+
+
 if __name__ == '__main__':
     config = get_gaussian_process_config()
     config.virtual_library = "chemical_space_smiles_500.csv"
@@ -99,7 +103,7 @@ if __name__ == '__main__':
 
     al = ActiveLearner(config)
 
-    for i in range(8):
+    for i in range(5):
         chosen_ones = al.get_next_best()
         for i, row in chosen_ones.iterrows():
             result = compute_fegrow(row.Smiles)  # TODO no conformers? penalise
@@ -107,6 +111,7 @@ if __name__ == '__main__':
             # update for record keeping
             chosen_ones.at[i, 'cnnaffinity'] = result['cnnaffinity']
         al.csv_cycle_summary(chosen_ones)
+        expand_chemical_space(al)
 
     print('hi')
 
