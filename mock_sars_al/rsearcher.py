@@ -134,8 +134,6 @@ def expand_chemical_space(al):
         extended = pd.concat([al.virtual_library, new_smiles], ignore_index=True)
         al.virtual_library = extended
 
-        print('hi')
-
 
 def build_smiles(core, hs, groups):
     """
@@ -172,7 +170,6 @@ def get_saving_queue():
 if __name__ == '__main__':
     MW_LIMIT = 300
     MAX_MOLS = 20
-    MIN_TASKS = 1
 
     # build the initial chemical space
 
@@ -206,6 +203,7 @@ if __name__ == '__main__':
 
     pdb_load = open('orighit_protein.pdb').read()
 
+    next_selection = None
     while True:
         for future, args in list(futures.items()):
             if not future.done():
@@ -228,27 +226,25 @@ if __name__ == '__main__':
 
         print(f"{datetime.datetime.now() - t_now}: Queued {len(futures)} tasks. ")
 
-        if len(futures) < (MIN_TASKS):
-            print(f'Fewer than {MIN_TASKS}. Scheduling more.')
+        if len(futures) == 0:
+            print(f'Iteration finished. Next iteration.')
 
-            # assume that cases have been calculated,
-            # use them to expand
-            expand_chemical_space(al)
+            # expand_chemical_space(al)
+
+            # save the results from the previous iteration
+            if next_selection is not None:
+                for i, row in next_selection.iterrows():
+                    # bookkeeping
+                    next_selection.loc[next_selection.Smiles == row.Smiles, ['cnnaffinity', 'Training']] = \
+                        al.virtual_library[al.virtual_library.Smiles == row.Smiles].cnnaffinity.values[0], True
+                al.csv_cycle_summary(next_selection)
 
             next_selection = al.get_next_best()
 
-            # for i, row in chosen_ones.iterrows():
-            #     chosen_ones.at[i, 'cnnaffinity'] = result['cnnaffinity']
-            # al.csv_cycle_summary(chosen_ones)
-            print('Already calculated: ', al.virtual_library[al.virtual_library.Training == True])
-
             # select 20 random molecules
-            row = next_selection.sample(1)
-            smiles = row.Smiles.values[0]
-            h = row.h.values[0]
-            args = [scaffold, h, smiles, pdb_load]
-            # score(scaffold, h, smiles, pdb_load)
-            futures[client.compute([score(*args), ])[0]] = args
+            for i, row in next_selection.iterrows():
+                args = [scaffold, row.h, row.Smiles, pdb_load]
+                futures[client.compute([score(*args), ])[0]] = args
 
         time.sleep(5)
 
