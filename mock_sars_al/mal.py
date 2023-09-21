@@ -62,9 +62,8 @@ class ActiveLearner:
 
     def set_answer(self, smiles, result):
         # add this result
-        self.virtual_library.loc[self.virtual_library.Smiles == smiles, 'cnnaffinity'] = result['cnnaffinity']
-        # mark for future training
-        self.virtual_library.loc[self.virtual_library.Smiles == smiles, ncl_cycle.TRAINING_KEY] = True
+        self.virtual_library.loc[self.virtual_library.Smiles == smiles,
+                                 ['cnnaffinity', ncl_cycle.TRAINING_KEY]] = result['cnnaffinity'], True
 
     def csv_cycle_summary(self, chosen_ones):
         cycle_dir = Path(f"generated/cycle_{self.cycle:04d}")
