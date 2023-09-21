@@ -27,7 +27,8 @@ from ncl_cycle import ALCycler
 oracle = pd.read_csv("oracle.csv")
 oracle.sort_values(by='cnnaffinity', ascending=False, inplace=True)
 # find 5% best values cutoff
-cutoff = oracle[:int(0.05*len(oracle))].cnnaffinity.values[0]
+cutoff = oracle[:int(0.05 * len(oracle))].cnnaffinity.values[0]
+
 
 def ask_oracle(chosen_ones, virtual_library):
     # check and return all the values for the smiles
@@ -41,14 +42,16 @@ def ask_oracle(chosen_ones, virtual_library):
     # update the main dataframe
     virtual_library.update(chosen_ones)
 
+
 def report(virtual_library, start_time):
     # select only the ones that have been chosen before
-    best_finds = virtual_library[virtual_library.cnnaffinity < -6]  #-6 is about 5% of the best cases
+    best_finds = virtual_library[virtual_library.cnnaffinity < -6]  # -6 is about 5% of the best cases
     print(f"IT: {cycle_id},Lib size: {len(virtual_library)}, "
           f"training size: {len(virtual_library[virtual_library.Training])}, "
           f"cnnaffinity 0: {len(virtual_library[virtual_library.cnnaffinity == 0])}, "
           f"<-6 cnnaff: {len(best_finds)}, "
           f"time: {time.time() - start_time}")
+
 
 if __name__ == '__main__':
     output = Path('generated')
@@ -58,7 +61,7 @@ if __name__ == '__main__':
     config = get_gaussian_process_config()
     config.training_pool = ','.join(["init.csv"] + previous_trainings)
     config.virtual_library = "large.csv"
-    config.selection_config.num_elements = 100    # how many new to select
+    config.selection_config.num_elements = 100  # how many new to select
     config.selection_config.selection_columns = ["cnnaffinity", "Smiles"]
     config.model_config.targets.params.feature_column = 'cnnaffinity'
     config.model_config.features.params.fingerprint_size = 2048
@@ -70,7 +73,7 @@ if __name__ == '__main__':
     if previous_trainings:
         cycle_start = max(int(re.findall("[\d]+", cycle)[0]) for cycle in previous_trainings)
 
-    for cycle_id in range(cycle_start, 400):
+    for cycle_id in range(cycle_start, 100):
         start_time = time.time()
         chosen_ones, virtual_library_regression = AL.run_cycle(virtual_library)
 
