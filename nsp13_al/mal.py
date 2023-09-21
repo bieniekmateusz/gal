@@ -14,6 +14,7 @@
 # limitations under the License.
 
 """Entry point for running a single cycle of active learning."""
+import os.path
 import time
 import pandas as pd
 from pathlib import Path
@@ -73,7 +74,8 @@ class ActiveLearner:
         self.report()
 
 
-oracle = pd.read_csv("negative_oracle.csv")
+if os.path.exists("negative_oracle.csv"):
+    oracle = pd.read_csv("negative_oracle.csv")
 def compute_fegrow(smiles):
     result = oracle[oracle.Smiles == smiles]
     return {'cnnaffinity': result.cnnaffinity.values[0]}
