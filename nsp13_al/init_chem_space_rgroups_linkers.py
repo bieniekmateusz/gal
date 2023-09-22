@@ -26,6 +26,6 @@ if __name__ == '__main__':
         results = p.map(build_smiles, all_combos)
 
     with open('manual_init.csv', 'w') as OUT:
-        OUT.write('smiles, h\n')
+        OUT.write('Smiles,h\n')
         for smiles, h in results:
             OUT.write(f'{smiles},{h}\n')

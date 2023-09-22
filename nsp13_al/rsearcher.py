@@ -55,7 +55,8 @@ class NoConformers(Exception):
 def score(scaffold, h, smiles, pdb_load):
     t_start = time.time()
     fegrow.RMol.set_gnina(os.environ['FG_GNINA_PATH'])
-    with tempfile.TemporaryDirectory(dir=mycluster.scratch_dir) as TMP:
+    with tempfile.TemporaryDirectory() as TMP:
+        TMP = Path(TMP)
         os.chdir(TMP)
         print(f'TIME changed dir: {time.time() - t_start}')
 
@@ -64,7 +65,7 @@ def score(scaffold, h, smiles, pdb_load):
         # Path('animodel.pt').symlink_to(ani)
         # print(f'TIME linked animodel: {time.time() - t_start}')
 
-        protein = 'protein_tmp.pdb'
+        protein = str(TMP / 'protein_tmp.pdb')
         with open(protein, 'w') as PDB:
             PDB.write(pdb_load)
 
@@ -95,7 +96,7 @@ def score(scaffold, h, smiles, pdb_load):
             sigma_scale_factor=0.8,
             relative_permittivity=4,
             water_model=None,
-            platform_name='CUDA',
+            platform_name='CPU',
         )
 
         # continue only if there are any conformers to be optimised
@@ -225,14 +226,14 @@ if __name__ == '__main__':
                 mol_saving_queue.put(rmol)
                 al.virtual_library.loc[al.virtual_library.Smiles == Chem.MolToSmiles(rmol),
                                        ['cnnaffinity', 'Training']] = float(rmol_data.cnnaffinity), True
-            except ValueError as E:
-                print('ERROR: Grab and save')
-                error, mol, coordMap = E.args[1]
+            except Exception as E:
+                print('ERROR: Will be ignored. Continuing the main loop. Error: ', E)
+                continue
 
-        print(f"{datetime.datetime.now() - t_now}: Queued {len(futures)} tasks. ")
+        print(f"{datetime.datetime.now() - t_now}: Queue: {len(futures)} tasks. ")
 
         if len(futures) == 0:
-            print(f'Iteration finished. Next iteration.')
+            print(f'Iteration finished. Next.')
 
             # expand_chemical_space(al)
 
