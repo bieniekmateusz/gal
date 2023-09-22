@@ -117,6 +117,8 @@ def score(scaffold, h, smiles, pdb_load):
         tox['MW'] = Descriptors.HeavyAtomMolWt(rmol)
         for k, v in tox.items():
             setattr(rmol_data, k, v)
+        rmol.interactions = rmol.plip_interactions(receptor_file="rec_final.pdb") # TODO write out pdb of receptor & use that
+        # TODO make sure fegrow plip branch is merged or this wont wory
 
         print(f'Task: Completed the molecule generation in {time.time() - t_start} seconds. ')
         return rmol, rmol_data

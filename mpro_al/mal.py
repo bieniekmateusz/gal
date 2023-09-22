@@ -113,6 +113,10 @@ if __name__ == '__main__':
             chosen_ones.at[i, 'cnnaffinity'] = result['cnnaffinity']
         al.csv_cycle_summary(chosen_ones)
         expand_chemical_space(al)
+        cfg_json = config.to_json()
+
+        with open(f'{i}_config.json', 'w') as fout:
+            fout.write(cfg_json)
 
     print('hi')
 
