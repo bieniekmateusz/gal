@@ -1,12 +1,9 @@
 """
-FG_MW_LIMIT - do not grow molecules that are already too large
-FG_MAX_MOLS - after generating this many molecules, stop
 FG_SCALE - if fewer tasks are in the queue than this, generate more. This also sets that many "proceses" in Dask.
 
  - Paths:
 export FG_ANIMODEL_PATH=/path/to/animodel.pt
 export FG_GNINA_PATH=/path/to/gnina
-export FG_PROTEIN_PATH=/path/to/protein.pdb
 """
 import copy
 import time
@@ -32,10 +29,20 @@ import fegrow
 import helpers
 
 # get hardware specific cluster
-import mycluster
+try:
+    from mycluster import create_cluster
+except ImportError:
+    # set up a local cluster just in case
+    def create_cluster():
+        from dask.distributed import LocalCluster
+        lc = LocalCluster(processes=True, threads_per_worker=1)
+        lc.adapt(maximum_cores=2)
+        return lc
 
 # preload the dataframes
 rgroups = list(fegrow.RGroupGrid._load_molecules().Mol.values)
+linkers = list(fegrow.RLinkerGrid._load_molecules().Mol.values)
+
 log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
@@ -143,10 +150,13 @@ def build_smiles(core, hs, groups):
     smiless = []
     hhooks = []
     for h in hs:
-        for group in groups[:10]:
-            smiles = Chem.MolToSmiles(fegrow.build_molecules(core, group, [h])[0], allHsExplicit=False)
-            smiless.append(smiles)
-            hhooks.append(h)
+        for group in groups:
+            for linker in linkers:
+                core_linker = fegrow.build_molecules(core, linker, [h])[0]
+                new_mol = fegrow.build_molecules(core_linker, group)[0]
+                smiles = Chem.MolToSmiles(new_mol)
+                smiless.append(smiles)
+                hhooks.append(h)
     print('Generated initial smiles in: ', time.time() - start)
     return pd.DataFrame({'Smiles': smiless, 'h': hhooks})
 
@@ -168,23 +178,18 @@ def get_saving_queue():
 
 
 if __name__ == '__main__':
-    MW_LIMIT = 300
-    MAX_MOLS = 20
-
-    # build the initial chemical space
-
     import mal
     from al_for_fep.configs.simple_greedy_gaussian_process import get_config as get_gaussian_process_config
     config = get_gaussian_process_config()
-    initial_chemical_space = "initial_chemical_space_smiles.csv"
+    initial_chemical_space = "linker_500rgroup_4h.csv"
     config.virtual_library = initial_chemical_space
-    config.selection_config.num_elements = 3  # how many new to select
+    config.selection_config.num_elements = 100  # how many new to select
     config.selection_config.selection_columns = ["cnnaffinity", "Smiles", 'h']
     config.model_config.targets.params.feature_column = 'cnnaffinity'
     config.model_config.features.params.fingerprint_size = 2048
 
     t_now = datetime.datetime.now()
-    client = Client(mycluster.create_cluster())
+    client = Client(create_cluster())
     print('Client', client)
 
     mol_saving_queue = get_saving_queue()
