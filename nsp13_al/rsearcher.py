@@ -182,9 +182,9 @@ if __name__ == '__main__':
     import mal
     from al_for_fep.configs.simple_greedy_gaussian_process import get_config as get_gaussian_process_config
     config = get_gaussian_process_config()
-    initial_chemical_space = "linker_500rgroup_4h.csv"
+    initial_chemical_space = "manual_init_h5_rgroups_linkers500.csv"
     config.virtual_library = initial_chemical_space
-    config.selection_config.num_elements = 100  # how many new to select
+    config.selection_config.num_elements = 200  # how many new to select
     config.selection_config.selection_columns = ["cnnaffinity", "Smiles", 'h']
     config.model_config.targets.params.feature_column = 'cnnaffinity'
     config.model_config.features.params.fingerprint_size = 2048
@@ -245,7 +245,9 @@ if __name__ == '__main__':
                         al.virtual_library[al.virtual_library.Smiles == row.Smiles].cnnaffinity.values[0], True
                 al.csv_cycle_summary(next_selection)
 
+            start = time.time()
             next_selection = al.get_next_best()
+            print(f"Selected the next sample in {time.time() - start}")
 
             # select 20 random molecules
             for i, row in next_selection.iterrows():
