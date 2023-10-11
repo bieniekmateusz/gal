@@ -2,6 +2,8 @@ import os
 from typing import NamedTuple, List
 from rdkit import Chem
 import dataclasses
+from collections import Counter
+
 
 import re
 import pandas as pd
@@ -191,41 +193,55 @@ def encode_intrns(interactions, interaction_dict):
     return bit_vector
 
 
-bit_vector2 = encode_interactions_to_bitvector(interactions2, interaction_dict)
+#bit_vector2 = encode_interactions_to_bitvector(interactions2, interaction_dict)
 
-bit_vector1, bit_vector2
+#bit_vector1, bit_vector2
 
-def plip_score(df1, df2):
+import pandas as pd
+
+import pandas as pd
+
+
+def plip_score(ref_df, var_df):
     """
-    Compute the similarity between columns of two DataFrames.
+    Compute Tanimoto similarity between a reference df of xstal plip interactions & another molecule.
 
     Parameters:
-    df1 (DataFrame): First DataFrame
-    df2 (DataFrame): Second DataFrame
+    ref_df (DataFrame): Reference DataFrame
+    var_df (DataFrame): Variable DataFrame to compare
+
+    # Sample DataFrames
+    ref_df = pd.DataFrame(
+    {0: ['hbond_HIS_41_O2', 'hbond_ASN_142_O2', 'hbond_HIS_163_N2', 'hbond_CYS_145_O3', 'hbond_GLN_189_O3']})
+    var_df = pd.DataFrame(
+    {0: ['hbond_GLU_166_O3', 'hbond_GLY_143_Nox', 'hbond_CYS_145_Nox', 'hbond_HIS_163_N2', 'hbond_GLU_166_O2']})
 
     Returns:
-    float: Similarity score
+    float: Tanimoto similarity score
     """
-    total_columns = len(df1.columns)
-    match_score = 0
+    assert len(ref_df.columns) == 1 and len(var_df.columns) == 1, "DataFrames should have only one column"
 
-    for col2 in df2.columns:
-        parts2 = col2.split('_')
+    ref_set = set(ref_df.iloc[:, 0])
+    var_set = set(var_df.iloc[:, 0])
 
-        # full match
-        if col2 in df1.columns:
-            match_score += 1
-        else:
-            # partial match (excluding the last part)
-            # not decided if we should do this yet, but could be useful to catch a hbond to e.g. O2 instead of O3
-            partial_match_cols = [
-                col1 for col1 in df1.columns if col1.split('_')[:-1] == parts2[:-1]
-            ]
-            match_score += 0.5 * len(partial_match_cols)
+    common_elements = len(ref_set.intersection(var_set))
 
-    return match_score / total_columns
+    total_elements = len(ref_set)
 
-interaction_list = ['hbond_THR_25_N3',
+    if total_elements == 0:
+        return 0  # Edge case: both sets are empty
+
+    tanimoto_similarity = common_elements / total_elements
+
+    return tanimoto_similarity
+
+
+
+
+
+
+
+xstal_interaction_list = ['hbond_THR_25_N3',
  'hbond_HIS_41_O2',
  'hbond_CYS_44_O2',
  'pistacking_HIS_41_nan',
@@ -265,3 +281,14 @@ interaction_list = ['hbond_THR_25_N3',
  'hbond_CYS_44_O2',
  'hbond_GLU_166_O2',
  'hbond_GLU_166_O2']
+
+xstal_set = set(xstal_interaction_list)
+
+frag_7l10 = ['hbond_GLU_166_O3',
+ 'hbond_GLY_143_Nox',
+ 'hbond_CYS_145_Nox',
+ 'hbond_HIS_163_N2',
+ 'hbond_GLU_166_O2']
+
+ref_df = pd.DataFrame(xstal_set)
+var_df = pd.DataFrame(frag_7l10)
