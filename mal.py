@@ -63,9 +63,12 @@ class ActiveLearner:
         # AL
         start_time = time.time()
         chosen_ones, virtual_library_regression = self.cycler.run_cycle(self.virtual_library)
+
+        enamines = virtual_library_regression[virtual_library_regression.enamine_id.notna()]
         print(f"Found next best in: {time.time() - start_time}")
+        print(f"Adding {len(enamines)} Enamine molecules to be computed.")
         self.cycle += 1
-        return chosen_ones
+        return pd.concat([chosen_ones, enamines])
 
     def set_answer(self, smiles, result):
         # add this result
