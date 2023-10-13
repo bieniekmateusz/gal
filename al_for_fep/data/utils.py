@@ -52,29 +52,30 @@ def parse_feature_smiles_morgan_fingerprint(
       radius=fingerprint_radius,
       nBits=fingerprint_size)
 
-  # from_scratch =  np.array([
-  #     np.array(fingerprint_fn(Chem.MolFromSmiles(smiles)))
-  #     for smiles in feature_dataframe[feature_column]
-  # ])
-  # print(f"Computed Fingerprints in {time.time() - start} for {len(feature_dataframe)} rows")
-  # return from_scratch
+  from_scratch =  np.array([
+      np.array(fingerprint_fn(Chem.MolFromSmiles(smiles)))
+      for smiles in feature_dataframe[feature_column]
+  ])
+  print(f"Computed Fingerprints in {time.time() - start} for {len(feature_dataframe)} rows")
+  return from_scratch
 
-  import fingerprints_db
-  fingerprints = []
-  for id, row in feature_dataframe.iterrows():
-      smiles = row[feature_column]
-      fp_base64 = fingerprints_db.get(id)
-      if fp_base64 is None:
-          fp = fingerprint_fn(Chem.MolFromSmiles(smiles))
-          fp_base64 = fp.ToBase64()
-          fingerprints_db.add(id, fp_base64)
-      else:
-          fp = ExplicitBitVect(2048)
-          fp.FromBase64(fp_base64)
-      fingerprints.append(np.array(fp))
-  print(f"Computed Fingerprints in {time.time() - start} s")
-
-  return np.array(fingerprints)
+  # import fingerprints_db
+  # fingerprints = []
+  # fp_skeleton = ExplicitBitVect(2048)
+  # for id, row in feature_dataframe.iterrows():
+  #     smiles = row[feature_column]
+  #     fp_base64 = fingerprints_db.get(id)
+  #     if fp_base64 is None:
+  #         fp = fingerprint_fn(Chem.MolFromSmiles(smiles))
+  #         fp_base64 = fp.ToBase64()
+  #         fingerprints_db.add(id, fp_base64)
+  #         fingerprints.append(np.array(fp))
+  #     else:
+  #         fp_skeleton.FromBase64(fp_base64)
+  #         fingerprints.append(np.array(fp_skeleton))
+  # print(f"Computed Fingerprints in {time.time() - start} s")
+  #
+  # return np.array(fingerprints)
 
 
 def parse_feature_smiles_rdkit_properties(
