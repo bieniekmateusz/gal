@@ -35,7 +35,7 @@ except ImportError:
     # set up a local cluster just in case
     def create_cluster():
         from dask.distributed import LocalCluster
-        lc = LocalCluster(processes=True, threads_per_worker=1)
+        lc = LocalCluster(processes=True, threads_per_worker=1, n_workers=1)
         lc.adapt(maximum_cores=2)
         return lc
 
@@ -54,7 +54,7 @@ class NoConformers(Exception):
 @dask.delayed
 def score(scaffold, h, smiles, pdb_load):
     t_start = time.time()
-    fegrow.RMol.set_gnina(os.environ['FG_GNINA_PATH'])
+    #fegrow.RMol.set_gnina(os.environ['FG_GNINA_PATH'])
     with tempfile.TemporaryDirectory() as TMP:
         TMP = Path(TMP)
         os.chdir(TMP)
@@ -87,7 +87,7 @@ def score(scaffold, h, smiles, pdb_load):
 
         rmol.remove_clashing_confs(protein)
         print(f'TIME conformers done: {time.time() - t_start}')
-        print('Number of conformers after removing clashes: ', rmol.GetNumConformers())
+        print('schedulerNumber of conformers after removing clashes: ', rmol.GetNumConformers())
 
         rmol.optimise_in_receptor(
             receptor_file=protein,
@@ -106,10 +106,11 @@ def score(scaffold, h, smiles, pdb_load):
         print(f'TIME opt done: {time.time() - t_start}')
 
         rmol.sort_conformers(energy_range=2) # kcal/mol
-        affinities = rmol.gnina(receptor_file=protein)
-        rmol_data.cnnaffinity = -affinities.CNNaffinity.values[0]
-        rmol_data.cnnaffinityIC50 = affinities["CNNaffinity->IC50s"].values[0]
-        rmol_data.hydrogens = [atom.GetIdx() for atom in rmol.GetAtoms() if atom.GetAtomicNum() == 1]
+        #affinities = rmol.gnina(receptor_file=protein)
+        #rmol_data.cnnaffinity = -affinities.CNNaffinity.values[0]
+        rmol_data.cnnaffinity = -Descriptors.HeavyAtomMolWt(rmol) / 100
+        # rmol_data.cnnaffinityIC50 = affinities["CNNaffinity->IC50s"].values[0]
+        #rmol_data.hydrogens = [atom.GetIdx() for atom in rmol.GetAtoms() if atom.GetAtomicNum() == 1]
 
         # compute all props
         tox = rmol.toxicity()
@@ -117,8 +118,8 @@ def score(scaffold, h, smiles, pdb_load):
         tox['MW'] = Descriptors.HeavyAtomMolWt(rmol)
         for k, v in tox.items():
             setattr(rmol_data, k, v)
-        rmol.interactions = rmol.plip_interactions(receptor_file="rec_final.pdb") # TODO write out pdb of receptor & use that
-        # TODO make sure fegrow plip branch is merged or this wont wory
+        rmol.interactions = rmol.plip_interactions(receptor_file=protein) #changed 19:04 11 oct "rec_final.pdb") # TODO write out pdb of receptor & use that
+        # TODO make sure fegrow plip branch is merged or this wont work
 
         print(f'Task: Completed the molecule generation in {time.time() - t_start} seconds. ')
         return rmol, rmol_data
@@ -184,9 +185,9 @@ if __name__ == '__main__':
     import mal
     from al_for_fep.configs.simple_greedy_gaussian_process import get_config as get_gaussian_process_config
     config = get_gaussian_process_config()
-    initial_chemical_space = "linker_500rgroup_4h.csv"
+    initial_chemical_space = "manual_init.csv"
     config.virtual_library = initial_chemical_space
-    config.selection_config.num_elements = 100  # how many new to select
+    config.selection_config.num_elements = 2  # how many new to select
     config.selection_config.selection_columns = ["cnnaffinity", "Smiles", 'h']
     config.model_config.targets.params.feature_column = 'cnnaffinity'
     config.model_config.features.params.fingerprint_size = 2048
@@ -198,18 +199,17 @@ if __name__ == '__main__':
     mol_saving_queue = get_saving_queue()
 
     # load the initial molecule
-    scaffold = Chem.SDMolSupplier('structures/c1cn[nH]c1.sdf', removeHs=False)[0]
-    scaffold_data = helpers.data(scaffold)
+    scaffold = Chem.SDMolSupplier('coreh.sdf', removeHs=False)[0]
 
-    if not os.path.exists(initial_chemical_space):
-        smiles = build_smiles(scaffold, scaffold_data.hydrogens, rgroups)
-        smiles.to_csv(initial_chemical_space, index=False)
+    # if not os.path.exists(initial_chemical_space):
+    #     smiles = build_smiles(scaffold, [6], rgroups)
+    #     smiles.to_csv(initial_chemical_space, index=False)
 
     al = mal.ActiveLearner(config)
 
     futures = {}
 
-    pdb_load = open('orighit_protein.pdb').read()
+    pdb_load = open('rec_final.pdb').read()
 
     next_selection = None
     while True:
