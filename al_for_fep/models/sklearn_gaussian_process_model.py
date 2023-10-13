@@ -37,7 +37,8 @@ def _tanimoto_similarity(a, b):
   aa = np.sum(a, axis=1, keepdims=True)
   bb = np.sum(b, axis=1, keepdims=True)
   ab = np.matmul(a, b.T)
-  return np.true_divide(ab, aa + bb.T - ab)
+  td = np.true_divide(ab, aa + bb.T - ab)
+  return td
 
 
 class TanimotoKernel(gaussian_process.kernels.NormalizedKernelMixin,
