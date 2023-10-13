@@ -27,7 +27,7 @@ import pandas as pd
 
 import fegrow
 import helpers
-
+print('hi')
 # get hardware specific cluster
 try:
     from mycluster import create_cluster

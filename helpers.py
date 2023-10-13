@@ -125,8 +125,8 @@ def add_sf(file1, file2, func, scale=True, display_name=None, *args):
 
 def exp_qed_cnn(df):
     '''10^cnn / mw * qed'''
-    col_name = 'cnnaff'
-    if col_name not in df.columns or 'cnn_per_mw' not in df.columns:
+    col_name = 'exp_cnn_per_mw'
+    if col_name not in df.columns or 'QED' not in df.columns:
         raise KeyError(f"Missing required columns: {col_name} and/or 'cnn_per_mw'")
     return df['exp_cnn_per_mw'] * df['QED']
 
@@ -193,11 +193,7 @@ def encode_intrns(interactions, interaction_dict):
     return bit_vector
 
 
-#bit_vector2 = encode_interactions_to_bitvector(interactions2, interaction_dict)
 
-#bit_vector1, bit_vector2
-
-import pandas as pd
 
 import pandas as pd
 
