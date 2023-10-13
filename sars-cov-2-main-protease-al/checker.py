@@ -10,14 +10,10 @@ output = Path('generated')
 previous_trainings = list(map(str, output.glob('cycle_*/selection.csv')))
 last = max(int(re.findall("[\d]+", cycle)[0]) for cycle in previous_trainings)
 
-oracle = pd.read_csv('negative_oracle_500.csv')
-oracle.rename({'cnnaffinity': 'oracle'}, axis=1, inplace=True)
+#print(f'Dataset: <-5: {ranges[5]: 4.2f}, <-6: {ranges[6]: 4.2f}, <-7: {ranges[7]: 4.2f}')
 
-ranges = [len(oracle[oracle.oracle < x]) for x in range(0, -8, -1)]
-print(f'Dataset: <-5: {ranges[5]: 4.2f}, <-6: {ranges[6]: 4.2f}, <-7: {ranges[7]: 4.2f}')
-
-for_pd = [oracle.oracle]
-cs = [oracle.oracle, ]
+for_pd = []
+cs = []
 for i in range(1, last+1):
     selection = pd.read_csv(f"{output}/cycle_{i:04d}/selection.csv")
     chemical_space = pd.read_csv(f"{output}/cycle_{i:04d}/virtual_library_with_predictions.csv", usecols=['Smiles'])
@@ -28,11 +24,6 @@ for i in range(1, last+1):
 
     newcol = f'c{i}'
     newdf = selection.rename({'cnnaffinity': newcol}, axis=1)
-
-    unselected_chemical_space = chemical_space[~chemical_space.Smiles.isin(selection.Smiles.values)]
-    unselected_chemical_space = oracle.merge(chemical_space, on='Smiles')
-    new_cs = unselected_chemical_space.rename({'oracle': newcol}, axis=1).drop(columns='Smiles')
-    cs.append(new_cs)
 
     for_pd.append(newdf[newcol])
 
