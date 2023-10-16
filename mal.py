@@ -64,7 +64,8 @@ class ActiveLearner:
         start_time = time.time()
         chosen_ones, virtual_library_regression = self.cycler.run_cycle(self.virtual_library)
 
-        enamines = virtual_library_regression[virtual_library_regression.enamine_id.notna()]
+        enamines = virtual_library_regression[virtual_library_regression.enamine_id.notna() &
+                                              virtual_library_regression.cnnaffinity.notna()]
         print(f"Found next best in: {time.time() - start_time}")
         print(f"Adding {len(enamines)} Enamine molecules to be computed.")
         self.cycle += 1
