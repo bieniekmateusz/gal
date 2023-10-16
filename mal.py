@@ -38,7 +38,7 @@ class ActiveLearner:
             # instead of the initial one
             config.virtual_library = str(generated / f"cycle_{len(previous_trainings)-1:04d}" / "virtual_library_with_predictions.csv")
 
-        self.cycle = len(previous_trainings)
+        self.cycle = min(len(previous_trainings) - 1, 0)
         self.cycler = ALCycler(config)
         self.virtual_library = self.cycler.get_virtual_library()
 
