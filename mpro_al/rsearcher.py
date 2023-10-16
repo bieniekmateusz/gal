@@ -25,8 +25,9 @@ from rdkit.Chem import Descriptors
 import openmm.app
 import pandas as pd
 
-import fegrow
 import helpers
+from helpers import gen_intrns_dict
+import fegrow
 
 # get hardware specific cluster
 try:
@@ -50,8 +51,6 @@ logging.basicConfig(level=logging.INFO)
 class NoConformers(Exception):
     pass
 
-
-@dask.delayed
 def score(scaffold, h, smiles, pdb_load):
     t_start = time.time()
     #fegrow.RMol.set_gnina(os.environ['FG_GNINA_PATH'])
@@ -82,7 +81,7 @@ def score(scaffold, h, smiles, pdb_load):
 
         rmol_data = helpers.Data()
 
-        rmol.generate_conformers(num_conf=200, minimum_conf_rms=0.4)
+        rmol.generate_conformers(num_conf=20, minimum_conf_rms=0.4)
         print('Number of simple conformers: ', rmol.GetNumConformers())
 
         rmol.remove_clashing_confs(protein)
@@ -98,7 +97,13 @@ def score(scaffold, h, smiles, pdb_load):
             water_model=None,
             platform_name='CPU',
         )
-
+        # compute all props
+        print(f'Calculating PLIP')
+        print(os.listdir())
+        plip_itrns = rmol.plip_interactions(receptor_file=protein)
+        plip_dict = gen_intrns_dict(plip_itrns)
+        rmol_data.plip = set(plip_dict.keys())
+        #plip taminoto score on rmol_data.plip, new rmol_data, .plip_score
         # continue only if there are any conformers to be optimised
         if rmol.GetNumConformers() == 0:
             rmol_data.cnnaffinity = 10
@@ -112,7 +117,9 @@ def score(scaffold, h, smiles, pdb_load):
         # rmol_data.cnnaffinityIC50 = affinities["CNNaffinity->IC50s"].values[0]
         #rmol_data.hydrogens = [atom.GetIdx() for atom in rmol.GetAtoms() if atom.GetAtomicNum() == 1]
 
-        # compute all props
+
+        #rmol_data.plip =
+
         tox = rmol.toxicity()
         tox = dict(zip(list(tox.columns), list(tox.values[0])))
         tox['MW'] = Descriptors.HeavyAtomMolWt(rmol)
@@ -188,7 +195,7 @@ if __name__ == '__main__':
     initial_chemical_space = "manual_init.csv"
     config.virtual_library = initial_chemical_space
     config.selection_config.num_elements = 2  # how many new to select
-    config.selection_config.selection_columns = ["cnnaffinity", "Smiles", 'h']
+    config.selection_config.selection_columns = ["cnnaffinity", "Smiles", 'h', 'plip']
     config.model_config.targets.params.feature_column = 'cnnaffinity'
     config.model_config.features.params.fingerprint_size = 2048
 
