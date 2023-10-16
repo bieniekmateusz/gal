@@ -30,6 +30,7 @@ class Data():
     Smiles: str = None
     QED: float = None
     interactions: list = None
+    plip: set = None
 
     def __repr__(self):
         return f"{self.filename} {self.hydrogens} {self.cnnaffinity} {self.cnnaffinityIC50}"
@@ -69,7 +70,7 @@ def data(mol):
     data = Data()
     for prop, value in mol.GetPropsAsDict().items():
         # avoid evaluating smiles
-        if str(prop).strip() in ['Smiles', 'filename']:
+        if str(prop).strip() in ['Smiles', 'filename', 'plip']:
             setattr(data, prop, value)
             continue
         else:
@@ -141,8 +142,11 @@ def gen_intrns_dict(interactions):
     dict: Sorted interaction dictionary mapping interaction strings to bit positions
     """
     # extract RESNR and RESNAME from interactions using regex
+    interactions['interaction'] = interactions.apply(
+        lambda row: f"{row['type']}_{row['RESTYPE']}_{str(row['RESNR'])}_{row['ACCEPTORTYPE']}", axis=1)
     interaction_tuples = []
-    for interaction in interactions:
+    print(interaction_tuples)
+    for interaction in interactions['interaction']:
         match = re.search('_(\w+)_(\d+)', interaction)
         if match:
             interaction_tuples.append((match.groups(), interaction))
