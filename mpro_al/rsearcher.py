@@ -25,9 +25,10 @@ from rdkit import Chem
 from rdkit.Chem import Descriptors
 import openmm.app
 import pandas as pd
+import numpy as np
 
 import helpers
-from helpers import gen_intrns_dict, xstal_set, plip_score
+from helpers import gen_intrns_dict, xstal_set, plip_score, sf1
 import fegrow
 
 # get hardware specific cluster
@@ -37,8 +38,8 @@ except ImportError:
     # set up a local cluster just in case
     def create_cluster():
         from dask.distributed import LocalCluster
-        lc = LocalCluster(processes=True, threads_per_worker=1, n_workers=1)
-        lc.adapt(maximum_cores=2)
+        lc = LocalCluster(processes=True, threads_per_worker=1, n_workers=4)
+        lc.adapt(maximum_cores=28)
         return lc
 
 # preload the dataframes
@@ -54,7 +55,7 @@ class NoConformers(Exception):
 
 def score(scaffold, h, smiles, pdb_load):
     t_start = time.time()
-    #fegrow.RMol.set_gnina(os.environ['FG_GNINA_PATH'])
+    fegrow.RMol.set_gnina(os.environ['FG_GNINA_PATH'])
     with (tempfile.TemporaryDirectory() as TMP):
         TMP = Path(TMP)
         os.chdir(TMP)
@@ -105,7 +106,6 @@ def score(scaffold, h, smiles, pdb_load):
         if rmol.GetNumConformers() == 0:
             rmol_data.cnnaffinity = 0.1
 
-        #return rmol, rmol_data
 
         print(f'TIME opt done: {time.time() - t_start}')
 
@@ -113,7 +113,7 @@ def score(scaffold, h, smiles, pdb_load):
         affinities = rmol.gnina(receptor_file=protein)
         rmol_data.cnnaffinity = -affinities.CNNaffinity.values[0]
         #rmol_data.cnnaffinity = -Descriptors.HeavyAtomMolWt(rmol) / 100
-        # rmol_data.cnnaffinityIC50 = affinities["CNNaffinity->IC50s"].values[0]
+        rmol_data.cnnaffinityIC50 = affinities["CNNaffinity->IC50s"].values[0]
         #rmol_data.hydrogens = [atom.GetIdx() for atom in rmol.GetAtoms() if atom.GetAtomicNum() == 1]
 
 
@@ -131,7 +131,13 @@ def score(scaffold, h, smiles, pdb_load):
         plip_itrns = rmol.plip_interactions(receptor_file=protein)
         plip_dict = gen_intrns_dict(plip_itrns)
         rmol_data.interactions = set(plip_dict.keys())
-        rmol_data.plip += plip_score(xstal_set, rmol_data.interactions)
+        rmol_data.plip += plip_score(xstal_set, rmol_data.interactions) * 10 # HYPERPARAM TO CHANGE
+        rmol_data.cnn_ic50_norm = rmol_data.cnnaffinityIC50 / rmol_data.MW
+        print('cnn: ', rmol_data.cnnaffinity)
+        print('cnnic50: ', rmol_data.cnnaffinityIC50)
+        print('cnnic50norm: ', rmol_data.cnn_ic50_norm)
+        rmol_data.sf1 = sf1(rmol_data)
+        print('sf1 = ', rmol_data.sf1)
         print('rmol_data.interactions: ', rmol_data.interactions)
         print('rmol_data.plip: ', rmol_data.plip)
         print(f'Task: Completed the molecule generation in {time.time() - t_start} seconds. ')
@@ -201,8 +207,8 @@ if __name__ == '__main__':
     initial_chemical_space = "manual_init.csv"
     config.virtual_library = initial_chemical_space
     config.selection_config.num_elements = 2  # how many new to select
-    config.selection_config.selection_columns = ["cnnaffinity", "Smiles", 'h', 'plip']
-    config.model_config.targets.params.feature_column = 'cnnaffinity'
+    config.selection_config.selection_columns = ["cnnaffinity", "Smiles", 'h', 'plip', 'sf1']
+    config.model_config.targets.params.feature_column = 'sf1' # 'cnnaffinity'
     config.model_config.features.params.fingerprint_size = 2048
 
     t_now = datetime.datetime.now()
@@ -219,12 +225,13 @@ if __name__ == '__main__':
     #     smiles.to_csv(initial_chemical_space, index=False)
 
     al = mal.ActiveLearner(config)
-
+    print('Initialised config')
     futures = {}
 
     pdb_load = open('rec_final.pdb').read()
 
     next_selection = None
+
     while True:
         for future, args in list(futures.items()):
             if not future.done():
@@ -238,35 +245,46 @@ if __name__ == '__main__':
                 rmol, rmol_data = future.result()
 
                 helpers.set_properties(rmol, rmol_data)
+                feature_column = config.model_config.targets.params.feature_column
+                # Dynamic attribute access
+                if hasattr(rmol_data, feature_column):
+                    feature_value = getattr(rmol_data, feature_column)
+                    print('FEATURE COLUMN: ', feature_column)
+                    print('FEATURE VALUE: ', feature_value)
+                else:
+                    print(f"Warning: {feature_column} not found in rmol_data")
+                    feature_value = None  # or some default value, or raise an exception
+
                 mol_saving_queue.put(rmol)
                 al.virtual_library.loc[al.virtual_library.Smiles == Chem.MolToSmiles(rmol),
-                                       ['cnnaffinity', 'Training']] = float(rmol_data.cnnaffinity), True
+                                       [feature_column, 'Training']] = float(feature_value), True
             except Exception as E:
                 print('ERROR: Will be ignored. Continuing the main loop. Error: ', E)
                 continue
 
-        print(f"{datetime.datetime.now() - t_now}: Queue: {len(futures)} tasks. ")
+            print(f"{datetime.datetime.now() - t_now}: Queue: {len(futures)} tasks. ")
 
-        if len(futures) == 0:
-            print(f'Iteration finished. Next.')
+            if len(futures) == 0:
+                print(f'Iteration finished. Next.')
 
-            # expand_chemical_space(al)
+                # expand_chemical_space(al)
 
-            # save the results from the previous iteration
-            if next_selection is not None:
+                # save the results from the previous iteration
+                if next_selection is not None:
+                    for i, row in next_selection.iterrows():
+                        # bookkeeping
+                        next_selection.loc[next_selection.Smiles == row.Smiles, [feature_column, 'Training']] = \
+                        al.virtual_library[al.virtual_library.Smiles == row.Smiles][feature_column].values[0], True
+
+                    al.csv_cycle_summary(next_selection)
+
+                next_selection = al.get_next_best()
+
+                # select 20 random molecules
                 for i, row in next_selection.iterrows():
-                    # bookkeeping
-                    next_selection.loc[next_selection.Smiles == row.Smiles, ['cnnaffinity', 'Training']] = \
-                        al.virtual_library[al.virtual_library.Smiles == row.Smiles].cnnaffinity.values[0], True
-                al.csv_cycle_summary(next_selection)
+                    args = [scaffold, row.h, row.Smiles, pdb_load]
+                    futures[client.compute([score(*args), ])[0]] = args
 
-            next_selection = al.get_next_best()
+            time.sleep(5)
 
-            # select 20 random molecules
-            for i, row in next_selection.iterrows():
-                args = [scaffold, row.h, row.Smiles, pdb_load]
-                futures[client.compute([score(*args), ])[0]] = args
-
-        time.sleep(5)
-
-    mol_saving_queue.join()
+        mol_saving_queue.join()

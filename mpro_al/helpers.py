@@ -4,7 +4,7 @@ from rdkit import Chem
 import dataclasses
 from collections import Counter
 
-
+import numpy as np
 import re
 import pandas as pd
 
@@ -13,11 +13,13 @@ cwd = os.getcwd()
 
 @dataclasses.dataclass
 class Data():
+    ''' mol data, and scoring functions, scoring functions (sf1, sf2, ..) are synthetically created from data '''
     filename: str = None
     # ie [hid, tried, successfull]
     hydrogens: List[int] = None
     cnnaffinity: float = None
     cnnaffinityIC50: float = None
+    cnn_ic50_norm: float = None
     MW: float = None
     HBA: int = None
     HBD: int = None
@@ -31,11 +33,25 @@ class Data():
     QED: float = None
     interactions: set = None
     plip: float = 1
+    sf1: float = None
+    sf2: float = None
 
     def __repr__(self):
         return f"{self.filename} {self.hydrogens} {self.cnnaffinity} {self.cnnaffinityIC50}"
 
+def sf1(rmol_data):
+    # assert that rmol_data contains the necessary data
+    try:
+        assert rmol_data.plip is not None, "plip attribute is missing or None"
+        assert rmol_data.cnn_ic50_norm is not None, "cnn_ic50_norm is missing or None"
+        assert rmol_data.MW is not None, "MW is missing or None"
+    except AssertionError as e:
+        raise ValueError(f"Missing necessary data: {e}")
+    sf1 = rmol_data.cnn_ic50_norm * rmol_data.QED * rmol_data.plip * (1 + len(rmol_data.interactions))
+    return sf1
 
+
+    
 def set_properties(mol, data):
     if data.filename == None:
         data.filename = Chem.MolToSmiles(Chem.RemoveHs(mol))
@@ -202,11 +218,6 @@ def encode_intrns(interactions, interaction_dict):
 
 #bit_vector1, bit_vector2
 
-import pandas as pd
-
-import pandas as pd
-
-import pandas as pd
 
 
 def plip_score(ref_set, var_set):
