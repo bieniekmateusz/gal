@@ -24,47 +24,49 @@ import ncl_cycle
 from ncl_cycle import ALCycler
 
 cwd = os.getcwd()
+
 class ActiveLearner:
     def __init__(self, config, initial_values=pd.DataFrame()):
+        self.feature_column = config.model_config.targets.params.feature_column
         previous_trainings = list(map(str, Path('generated').glob('cycle_*/selection.csv')))
-
-        # specify training
         config.training_pool = ','.join([config.training_pool] + previous_trainings)
-        print('Using trainings: ', config.training_pool)
-
+        print(f'Using trainings: {config.training_pool}')
+        
         self.cycle = len(previous_trainings)
         self.cycler = ALCycler(config)
         self.virtual_library = self.cycler.get_virtual_library()
+        print('virtual library columns: ', self.virtual_library.columns)
+        print('feature_column: ', self.feature_column)
 
     def report(self):
-        # select only the ones that have been chosen before
-        best_finds = self.virtual_library[self.virtual_library.cnnaffinity < -6]  # -6 is about 5% of the best cases
+        best_finds = self.virtual_library[self.feature_column].mean() #self.virtual_library[self.virtual_library[self.feature_column]]  # NOT BEST JUST ALL
         print(f"IT: {self.cycle}, lib: {len(self.virtual_library)}, "
               f"training: {len(self.virtual_library[self.virtual_library.Training])}, "
-              f"cnnaffinity no: {len(self.virtual_library[~self.virtual_library.cnnaffinity.isna()])}, "
-              f"<-6 cnnaff: {len(best_finds)}")
+              f"{self.feature_column} no: {len(self.virtual_library[~self.virtual_library[self.feature_column].isna()])}, "
+              f"mean {self.feature_column}: {best_finds}")
 
     def get_next_best(self):
-        # in the first iteration there is no data, pick random molecules
-        not_null_rows = self.virtual_library[self.virtual_library.cnnaffinity.notnull()]
+        not_null_rows = self.virtual_library[self.virtual_library[self.feature_column].notnull()]
+        print(not_null_rows)
         if len(not_null_rows) == 0:
-            # there is nothing dedicated to Training yet
-            assert len(self.virtual_library[self.virtual_library.Training == True]) == 0
+            print("No previous training data, randomising initial selection")
+            true_rows = self.virtual_library[self.virtual_library.Training == True]
+            if len(true_rows) != 0:
+                raise AssertionError(f"Found rows with Training == True but feature column values are null, virtual library hasn't been updated from previous cycle. The rows are:\n{true_rows}")
 
             random_starter = self.virtual_library.sample(self.cycler._cycle_config.selection_config.num_elements)
             return random_starter
-
         # AL
         start_time = time.time()
+        print('AL on virtual library: ', self.virtual_library)
         chosen_ones, virtual_library_regression = self.cycler.run_cycle(self.virtual_library)
         print(f"Found next best in: {time.time() - start_time}")
         self.cycle += 1
         return chosen_ones
 
     def set_answer(self, smiles, result):
-        # add this result
-        self.virtual_library.loc[self.virtual_library.Smiles == smiles,
-                                 ['cnnaffinity', ncl_cycle.TRAINING_KEY]] = result['cnnaffinity'], True
+        self.virtual_library.loc[self.virtual_library.Smiles == smiles, 
+                                 [self.feature_column, ncl_cycle.TRAINING_KEY]] = result[self.feature_column], True  # Step 2
 
     def csv_cycle_summary(self, chosen_ones):
         cycle_dir = Path(f"{cwd}/generated/cycle_{self.cycle:04d}")
@@ -72,6 +74,8 @@ class ActiveLearner:
         self.virtual_library.to_csv(cycle_dir / 'virtual_library_with_predictions.csv', index=False)
         chosen_ones.to_csv(cycle_dir / "selection.csv", columns=self.cycler._cycle_config.selection_config.selection_columns, index=False)
         self.report()
+
+
 
 
 if os.path.exists("negative_oracle.csv"):
@@ -101,9 +105,7 @@ if __name__ == '__main__':
     config.selection_config.selection_columns = ["cnnaffinity", "Smiles"]
     config.model_config.targets.params.feature_column = 'cnnaffinity'
     config.model_config.features.params.fingerprint_size = 2048
-
     al = ActiveLearner(config)
-
     for i in range(5):
         chosen_ones = al.get_next_best()
         for i, row in chosen_ones.iterrows():
