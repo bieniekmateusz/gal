@@ -5,6 +5,7 @@ FG_SCALE - if fewer tasks are in the queue than this, generate more. This also s
 export FG_ANIMODEL_PATH=/path/to/animodel.pt
 export FG_GNINA_PATH=/path/to/gnina
 """
+
 import copy
 import time
 import random
@@ -109,9 +110,9 @@ def score(scaffold, h, smiles, pdb_load):
         print(f'TIME opt done: {time.time() - t_start}')
 
         rmol.sort_conformers(energy_range=2) # kcal/mol
-        #affinities = rmol.gnina(receptor_file=protein)
-        #rmol_data.cnnaffinity = -affinities.CNNaffinity.values[0]
-        rmol_data.cnnaffinity = -Descriptors.HeavyAtomMolWt(rmol) / 100
+        affinities = rmol.gnina(receptor_file=protein)
+        rmol_data.cnnaffinity = -affinities.CNNaffinity.values[0]
+        #rmol_data.cnnaffinity = -Descriptors.HeavyAtomMolWt(rmol) / 100
         # rmol_data.cnnaffinityIC50 = affinities["CNNaffinity->IC50s"].values[0]
         #rmol_data.hydrogens = [atom.GetIdx() for atom in rmol.GetAtoms() if atom.GetAtomicNum() == 1]
 
