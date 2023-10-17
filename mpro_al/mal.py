@@ -23,7 +23,7 @@ from al_for_fep.configs.simple_greedy_gaussian_process import get_config as get_
 import ncl_cycle
 from ncl_cycle import ALCycler
 
-
+cwd = os.getcwd()
 class ActiveLearner:
     def __init__(self, config, initial_values=pd.DataFrame()):
         previous_trainings = list(map(str, Path('generated').glob('cycle_*/selection.csv')))
@@ -67,7 +67,7 @@ class ActiveLearner:
                                  ['cnnaffinity', ncl_cycle.TRAINING_KEY]] = result['cnnaffinity'], True
 
     def csv_cycle_summary(self, chosen_ones):
-        cycle_dir = Path(f"generated/cycle_{self.cycle:04d}")
+        cycle_dir = Path(f"{cwd}/generated/cycle_{self.cycle:04d}")
         cycle_dir.mkdir(exist_ok=True, parents=True)
         self.virtual_library.to_csv(cycle_dir / 'virtual_library_with_predictions.csv', index=False)
         chosen_ones.to_csv(cycle_dir / "selection.csv", columns=self.cycler._cycle_config.selection_config.selection_columns, index=False)
