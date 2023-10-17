@@ -253,7 +253,7 @@ if __name__ == '__main__':
                     print('FEATURE VALUE: ', feature_value)
                 else:
                     print(f"Warning: {feature_column} not found in rmol_data")
-                    feature_value = None  # or some default value, or raise an exception
+                    assert feature_value is not None # or some default value, or raise an exception
 
                 mol_saving_queue.put(rmol)
                 al.virtual_library.loc[al.virtual_library.Smiles == Chem.MolToSmiles(rmol),
@@ -262,29 +262,29 @@ if __name__ == '__main__':
                 print('ERROR: Will be ignored. Continuing the main loop. Error: ', E)
                 continue
 
-            print(f"{datetime.datetime.now() - t_now}: Queue: {len(futures)} tasks. ")
+        print(f"{datetime.datetime.now() - t_now}: Queue: {len(futures)} tasks. ")
 
-            if len(futures) == 0:
-                print(f'Iteration finished. Next.')
+        if len(futures) == 0:
+            print(f'Iteration finished. Next.')
 
-                # expand_chemical_space(al)
+            # expand_chemical_space(al)
 
-                # save the results from the previous iteration
-                if next_selection is not None:
-                    for i, row in next_selection.iterrows():
-                        # bookkeeping
-                        next_selection.loc[next_selection.Smiles == row.Smiles, [feature_column, 'Training']] = \
-                        al.virtual_library[al.virtual_library.Smiles == row.Smiles][feature_column].values[0], True
-
-                    al.csv_cycle_summary(next_selection)
-
-                next_selection = al.get_next_best()
-
-                # select 20 random molecules
+            # save the results from the previous iteration
+            if next_selection is not None:
                 for i, row in next_selection.iterrows():
-                    args = [scaffold, row.h, row.Smiles, pdb_load]
-                    futures[client.compute([score(*args), ])[0]] = args
+                    # bookkeeping
+                    next_selection.loc[next_selection.Smiles == row.Smiles, [feature_column, 'Training']] = \
+                    al.virtual_library[al.virtual_library.Smiles == row.Smiles][feature_column].values[0], True
 
-            time.sleep(5)
+                al.csv_cycle_summary(next_selection)
 
-        mol_saving_queue.join()
+            next_selection = al.get_next_best()
+
+            # select 20 random molecules
+            for i, row in next_selection.iterrows():
+                args = [scaffold, row.h, row.Smiles, pdb_load]
+                futures[client.compute([score(*args), ])[0]] = args
+
+        time.sleep(5)
+
+    mol_saving_queue.join()
