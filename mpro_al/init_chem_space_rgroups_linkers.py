@@ -10,7 +10,7 @@ rgroups = list(fegrow.RGroupGrid._load_molecules().Mol.values)
 linkers = list(fegrow.RLinkerGrid._load_molecules().Mol.values)
 
 linkers = linkers[:10]
-
+h = 9
 scaffold = Chem.SDMolSupplier('coreh.sdf', removeHs=False)[0]
 
 def build_smiles(args):
@@ -22,7 +22,7 @@ def build_smiles(args):
 
 
 if __name__ == '__main__':
-    all_combos = it.product([6], rgroups, linkers)
+    all_combos = it.product([h], rgroups, linkers)
     with Pool(28) as p:
         results = p.map(build_smiles, all_combos)
 

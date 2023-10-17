@@ -26,7 +26,7 @@ import openmm.app
 import pandas as pd
 
 import helpers
-from helpers import gen_intrns_dict
+from helpers import gen_intrns_dict, xstal_set, plip_score
 import fegrow
 
 # get hardware specific cluster
@@ -54,7 +54,7 @@ class NoConformers(Exception):
 def score(scaffold, h, smiles, pdb_load):
     t_start = time.time()
     #fegrow.RMol.set_gnina(os.environ['FG_GNINA_PATH'])
-    with tempfile.TemporaryDirectory() as TMP:
+    with (tempfile.TemporaryDirectory() as TMP):
         TMP = Path(TMP)
         os.chdir(TMP)
         print(f'TIME changed dir: {time.time() - t_start}')
@@ -97,17 +97,15 @@ def score(scaffold, h, smiles, pdb_load):
             water_model=None,
             platform_name='CPU',
         )
-        # compute all props
-        print(f'Calculating PLIP')
-        print(os.listdir())
-        plip_itrns = rmol.plip_interactions(receptor_file=protein)
-        plip_dict = gen_intrns_dict(plip_itrns)
-        rmol_data.plip = set(plip_dict.keys())
+
+
         #plip taminoto score on rmol_data.plip, new rmol_data, .plip_score
         # continue only if there are any conformers to be optimised
         if rmol.GetNumConformers() == 0:
-            rmol_data.cnnaffinity = 10
-            return rmol, rmol_data
+            rmol_data.cnnaffinity = 0.1
+
+        #return rmol, rmol_data
+
         print(f'TIME opt done: {time.time() - t_start}')
 
         rmol.sort_conformers(energy_range=2) # kcal/mol
@@ -118,16 +116,23 @@ def score(scaffold, h, smiles, pdb_load):
         #rmol_data.hydrogens = [atom.GetIdx() for atom in rmol.GetAtoms() if atom.GetAtomicNum() == 1]
 
 
-        #rmol_data.plip =
+
 
         tox = rmol.toxicity()
         tox = dict(zip(list(tox.columns), list(tox.values[0])))
         tox['MW'] = Descriptors.HeavyAtomMolWt(rmol)
         for k, v in tox.items():
             setattr(rmol_data, k, v)
-        rmol.interactions = rmol.plip_interactions(receptor_file=protein) #changed 19:04 11 oct "rec_final.pdb") # TODO write out pdb of receptor & use that
-        # TODO make sure fegrow plip branch is merged or this wont work
 
+        # compute all props
+        print(f'Calculating PLIP')
+
+        plip_itrns = rmol.plip_interactions(receptor_file=protein)
+        plip_dict = gen_intrns_dict(plip_itrns)
+        rmol_data.interactions = set(plip_dict.keys())
+        rmol_data.plip += plip_score(xstal_set, rmol_data.interactions)
+        print('rmol_data.interactions: ', rmol_data.interactions)
+        print('rmol_data.plip: ', rmol_data.plip)
         print(f'Task: Completed the molecule generation in {time.time() - t_start} seconds. ')
         return rmol, rmol_data
 

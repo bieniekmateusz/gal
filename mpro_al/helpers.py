@@ -9,7 +9,7 @@ import re
 import pandas as pd
 
 import uuid
-
+cwd = os.getcwd()
 
 @dataclasses.dataclass
 class Data():
@@ -29,8 +29,8 @@ class Data():
     synthetic_accessibility: float = None
     Smiles: str = None
     QED: float = None
-    interactions: list = None
-    plip: set = None
+    interactions: set = None
+    plip: float = 1
 
     def __repr__(self):
         return f"{self.filename} {self.hydrogens} {self.cnnaffinity} {self.cnnaffinityIC50}"
@@ -46,14 +46,15 @@ def set_properties(mol, data):
 
 
 def save(mol):
+    print(f'cwd = {cwd}')
     filename = Chem.MolToSmiles(Chem.RemoveHs(mol))
 
-    if os.path.exists(f'structures/{filename}.sdf'):
+    if os.path.exists(f'{cwd}/structures/{filename}.sdf'):
         print('Overwriting the existing file')
     else:
         print(f'Creating a new file: {filename}.sdf')
 
-    with Chem.SDWriter(f'structures/{filename}.sdf') as SD:
+    with Chem.SDWriter(f'{cwd}/structures/{filename}.sdf') as SD:
         # add the data as properties to the file
         SD.write(mol)
         print(f'Saved {filename}')
@@ -205,44 +206,40 @@ import pandas as pd
 
 import pandas as pd
 
+import pandas as pd
 
-def plip_score(ref_df, var_df):
+
+def plip_score(ref_set, var_set):
     """
-    Compute Tanimoto similarity between a reference df of xstal plip interactions & another molecule.
+    Compute Tanimoto similarity between a reference set of xstal plip interactions & another molecule.
 
     Parameters:
-    ref_df (DataFrame): Reference DataFrame
-    var_df (DataFrame): Variable DataFrame to compare
-
-    # Sample DataFrames
-    ref_df = pd.DataFrame(
-    {0: ['hbond_HIS_41_O2', 'hbond_ASN_142_O2', 'hbond_HIS_163_N2', 'hbond_CYS_145_O3', 'hbond_GLN_189_O3']})
-    var_df = pd.DataFrame(
-    {0: ['hbond_GLU_166_O3', 'hbond_GLY_143_Nox', 'hbond_CYS_145_Nox', 'hbond_HIS_163_N2', 'hbond_GLU_166_O2']})
+    ref_set (set): Reference set
+    var_set (set): Variable set to compare
 
     Returns:
     float: Tanimoto similarity score
     """
+    # Convert sets to single-column DataFrames
+    ref_df = pd.DataFrame({0: list(ref_set)})
+    var_df = pd.DataFrame({0: list(var_set)})
+
+    # Ensure DataFrames have only one column
     assert len(ref_df.columns) == 1 and len(var_df.columns) == 1, "DataFrames should have only one column"
 
-    ref_set = set(ref_df.iloc[:, 0])
-    var_set = set(var_df.iloc[:, 0])
-
+    # Compute intersection
     common_elements = len(ref_set.intersection(var_set))
 
+    # Compute the total number of elements in the reference set
     total_elements = len(ref_set)
 
     if total_elements == 0:
         return 0  # Edge case: both sets are empty
 
+    # Calculate Tanimoto similarity
     tanimoto_similarity = common_elements / total_elements
 
     return tanimoto_similarity
-
-
-
-
-
 
 
 xstal_interaction_list = ['hbond_THR_25_N3',
