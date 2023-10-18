@@ -38,17 +38,18 @@ class Data():
     sf2: float = None
 
     def __repr__(self):
-        return f"{self.filename} {self.hydrogens} {self.cnnaffinity} {self.cnnaffinityIC50}"
+        return f"{self.filename} {self.hydrogens} {self.cnnaffinity} {self.cnnaffinityIC50} {self.sf1}"
 
 def sf1(rmol_data):
     # assert that rmol_data contains the necessary data
     try:
         assert rmol_data.plip is not None, "plip attribute is missing or None"
+        assert rmol_data.interactions is not None, "interactions attribute is missing or None"
         assert rmol_data.cnn_ic50_norm is not None, "cnn_ic50_norm is missing or None"
         assert rmol_data.MW is not None, "MW is missing or None"
     except AssertionError as e:
         raise ValueError(f"Missing necessary data: {e}")
-    sf1 = rmol_data.cnn_ic50_norm * rmol_data.QED * rmol_data.plip * (1 + len(rmol_data.interactions))
+    sf1 = (rmol_data.QED * rmol_data.plip * (1 + len(rmol_data.interactions))) * (10**(rmol_data.cnnaffinity) / rmol_data.MW) 
     return sf1
 
 
