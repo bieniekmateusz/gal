@@ -83,13 +83,13 @@ def score(scaffold, h, smiles, pdb_load):
 
         rmol_data = helpers.Data()
 
-        rmol.generate_conformers(num_conf=20, minimum_conf_rms=0.4)
+        rmol.generate_conformers(num_conf=50, minimum_conf_rms=0.4)
         print('Number of simple conformers: ', rmol.GetNumConformers())
 
         rmol.remove_clashing_confs(protein)
         print(f'TIME conformers done: {time.time() - t_start}')
         print('schedulerNumber of conformers after removing clashes: ', rmol.GetNumConformers())
-
+        print(f'SMILES: {smiles}')
         rmol.optimise_in_receptor(
             receptor_file=protein,
             ligand_force_field="openff",
@@ -115,7 +115,7 @@ def score(scaffold, h, smiles, pdb_load):
             except Exception as e:
                 print(e)
             print('cnnaff : ', affinities)
-            rmol_data.cnnaffinity = -affinities.CNNaffinity.values[0]
+            rmol_data.cnnaffinity = affinities.CNNaffinity.values[0]
             #rmol_data.cnnaffinity = -Descriptors.HeavyAtomMolWt(rmol) / 100
             rmol_data.cnnaffinityIC50 = affinities["CNNaffinity->IC50s"].values[0]
             #rmol_data.hydrogens = [atom.GetIdx() for atom in rmol.GetAtoms() if atom.GetAtomicNum() == 1]
@@ -135,7 +135,7 @@ def score(scaffold, h, smiles, pdb_load):
             plip_itrns = rmol.plip_interactions(receptor_file=protein)
             plip_dict = gen_intrns_dict(plip_itrns)
             rmol_data.interactions = set(plip_dict.keys())
-            rmol_data.plip += plip_score(xstal_set, rmol_data.interactions) * 10 # HYPERPARAM TO CHANGE
+            rmol_data.plip += plip_score(xstal_set, rmol_data.interactions) * 50 # HYPERPARAM TO CHANGE
             rmol_data.cnn_ic50_norm = rmol_data.cnnaffinityIC50 / rmol_data.MW
             print('cnn: ', rmol_data.cnnaffinity)
             print('cnnic50: ', rmol_data.cnnaffinityIC50)
@@ -223,7 +223,7 @@ if __name__ == '__main__':
 
     # load the initial molecule
     scaffold = Chem.SDMolSupplier('5r83_coreh.sdf', removeHs=False)[0]
-
+    #scaffold_data = helpers.data(scaffold)
     # if not os.path.exists(initial_chemical_space):
     #     smiles = build_smiles(scaffold, [6], rgroups)
     #     smiles.to_csv(initial_chemical_space, index=False)
@@ -231,7 +231,7 @@ if __name__ == '__main__':
     al = mal.ActiveLearner(config)
     print('Initialised config')
     futures = {}
-    pdb_f = '5R83_final.pdb'
+    pdb_f = 'rec_final.pdb'
     print(f'Loading pdb: {os.getcwd()}/{pdb_f}') 
     pdb_load = open(pdb_f).read()
 
