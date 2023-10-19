@@ -88,11 +88,10 @@ def score(scaffold, h, smiles, pdb_load):
             platform_name='CPU',
         )
 
-        # continue only if there are any conformers to be optimised
         if rmol.GetNumConformers() == 0:
-            return rmol, {"cnnaffinity": 0} # 0 as the worst score
-        print(f'TIME opt done: {time.time() - t_start}')
+            raise Exception("No Conformers")
 
+        print(f'TIME opt done: {time.time() - t_start}')
         rmol.sort_conformers(energy_range=2) # kcal/mol
         affinities = rmol.gnina(receptor_file=protein)
         data = {
@@ -164,20 +163,20 @@ if __name__ == '__main__':
                 continue
 
             # get back the original arguments
-            scaffold, h, smiles, _ = futures[future]
+            smiles = futures[future]
             del futures[future]
 
             try:
                 rmol, rmol_data = future.result()
-
                 [rmol.SetProp(k, str(v)) for k, v in rmol_data.items()]
                 mol_saving_queue.put(rmol)
-                print("Updating: ", al.virtual_library.loc[al.virtual_library.Smiles == Chem.MolToSmiles(rmol)].to_markdown())
-                al.virtual_library.loc[al.virtual_library.Smiles == Chem.MolToSmiles(rmol),
-                                       ['cnnaffinity', 'Training']] = float(rmol_data["cnnaffinity"]), True
+                score = float(rmol_data["cnnaffinity"])
             except Exception as E:
-                print('ERROR: Will be ignored. Continuing the main loop. Error: ', E)
-                continue
+                print('ERROR when scoring. Assigning a penalty. Error: ', E)
+                score = 0 # penalty
+
+            print(f"Updating: {al.virtual_library.loc[al.virtual_library.Smiles == smiles].to_markdown()}")
+            al.virtual_library.loc[al.virtual_library.Smiles == smiles, ['cnnaffinity', 'Training']] = score, True
 
         if len(futures) == 0:
             print(f'Iteration finished. Next.')
@@ -190,15 +189,12 @@ if __name__ == '__main__':
                         al.virtual_library[al.virtual_library.Smiles == row.Smiles].cnnaffinity.values[0], True
                 al.csv_cycle_summary(next_selection)
 
-            start = time.time()
             # cProfile.run('next_selection = al.get_next_best()', filename='get_next_best.prof', sort=True)
             next_selection = al.get_next_best()
-            print(f"Selected the next sample in {time.time() - start}")
 
             # select 20 random molecules
             for i, row in next_selection.iterrows():
-                args = [scaffold, row.h, row.Smiles, pdb_load]
-                futures[client.compute([score(*args), ])[0]] = args
+                futures[client.compute([score(scaffold, row.h, row.Smiles, pdb_load), ])[0]] = [row.Smiles]
 
         time.sleep(5)
 
