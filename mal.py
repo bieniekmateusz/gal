@@ -65,14 +65,14 @@ class ActiveLearner:
             random_starter = self.virtual_library.sample(self.cycler._cycle_config.selection_config.num_elements)
             return random_starter
 
-        # AL
         start_time = time.time()
         chosen_ones, virtual_library_regression = self.cycler.run_cycle(self.virtual_library)
+        print(f"Found next best {len(chosen_ones)} in: {time.time() - start_time:.1f}")
 
         enamines = virtual_library_regression[virtual_library_regression.enamine_id.notna() &
-                                              virtual_library_regression.cnnaffinity.notna()]
-        print(f"Found next best in: {time.time() - start_time}")
-        print(f"Adding {len(enamines)} Enamine molecules to be computed.")
+                                              virtual_library_regression.cnnaffinity.isna()]
+        if len(enamines) > 0:
+            print(f"Adding on top {len(enamines)} Enamine molecules to be computed.")
         self.cycle += 1
         return pd.concat([chosen_ones, enamines])
 
