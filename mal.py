@@ -32,7 +32,7 @@ class ActiveLearner:
         if config.training_pool != '':
             previous_trainings += [config.training_pool]
         config.training_pool = ','.join(previous_trainings)
-        print('Using trainings: ', config.training_pool)
+        print('Detected trainings: ', config.training_pool)
 
         if previous_trainings:
             # use the latest full .csv which already has Training set
@@ -42,7 +42,7 @@ class ActiveLearner:
         self.cycle = max(len(previous_trainings) - 1, 0)
         self.cycler = ALCycler(config)
         self.virtual_library = self.cycler.get_virtual_library()
-        print(f'Feature: {len(self.virtual_library[self.virtual_library.cnnaffinity.notna()])}, '
+        print(f'Launching summary: Feature: {len(self.virtual_library[self.virtual_library.cnnaffinity.notna()])}, '
               f'Training: {len(self.virtual_library[self.virtual_library.Training == True])}, '
               f'Enamines: {len(self.virtual_library[self.virtual_library.enamine_id.notna()])}, '
               f'Enamines Training: {len(self.virtual_library[self.virtual_library.enamine_id.notna() & self.virtual_library.Training == True])}')
@@ -67,7 +67,7 @@ class ActiveLearner:
 
         start_time = time.time()
         chosen_ones, virtual_library_regression = self.cycler.run_cycle(self.virtual_library)
-        print(f"Found next best {len(chosen_ones)} in: {time.time() - start_time:.1f}")
+        print(f"Found next best {len(chosen_ones)} in: {time.time() - start_time:.1f}s")
 
         enamines = virtual_library_regression[virtual_library_regression.enamine_id.notna() &
                                               virtual_library_regression.cnnaffinity.isna()]
