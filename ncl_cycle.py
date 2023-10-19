@@ -20,14 +20,15 @@ class ALCycler(single_cycle_lib.MakitaCycle):
 
         virtual_lib = pd.read_csv(self._cycle_config.virtual_library)
 
-        training_pool_ids = []
+        training_pool = []
         for fileglob in self._cycle_config.training_pool.split(','):
             for filename in glob.glob(fileglob):
-                training_pool_ids.append(pd.read_csv(filename)[[feature_column]])
-        if training_pool_ids:
-            training_pool_ids = pd.concat(training_pool_ids)
+                print('Reading previous selections')
+                training_pool.append(pd.read_csv(filename))
+        if training_pool:
+            training_pool_ids = pd.concat(training_pool)
         else:
-            training_pool_ids = pd.DataFrame({'Smiles': []})
+            training_pool_ids = pd.DataFrame({feature_column: []})
 
         selection_columns = self._cycle_config.selection_config.selection_columns
 

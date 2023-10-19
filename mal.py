@@ -27,10 +27,11 @@ from ncl_cycle import ALCycler
 class ActiveLearner:
     def __init__(self, config, initial_values=pd.DataFrame()):
         generated = Path('generated')
-        previous_trainings = list(map(str, generated.glob('cycle_*/selection.csv')))
 
-        # specify training
-        config.training_pool = ','.join([config.training_pool] + previous_trainings)
+        previous_trainings = list(map(str, generated.glob('cycle_*/selection.csv')))
+        if config.training_pool != '':
+            previous_trainings += [config.training_pool]
+        config.training_pool = ','.join(previous_trainings)
         print('Using trainings: ', config.training_pool)
 
         if previous_trainings:
@@ -41,6 +42,10 @@ class ActiveLearner:
         self.cycle = max(len(previous_trainings) - 1, 0)
         self.cycler = ALCycler(config)
         self.virtual_library = self.cycler.get_virtual_library()
+        print(f'Feature: {len(self.virtual_library[self.virtual_library.cnnaffinity.notna()])}, '
+              f'Training: {len(self.virtual_library[self.virtual_library.Training == True])}, '
+              f'Enamines: {len(self.virtual_library[self.virtual_library.enamine_id.notna()])}, '
+              f'Enamines Training: {len(self.virtual_library[self.virtual_library.enamine_id.notna() & self.virtual_library.Training == True])}')
 
     def report(self):
         # select only the ones that have been chosen before
