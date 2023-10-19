@@ -43,13 +43,13 @@ except ImportError:
 
 
 @dask.delayed
-def score(scaffold, h, smiles, pdb_load):
+def evaluate(scaffold, h, smiles, pdb_load):
     t_start = time.time()
     fegrow.RMol.set_gnina(os.environ['FG_GNINA_PATH'])
     with tempfile.TemporaryDirectory() as TMP:
         TMP = Path(TMP)
         os.chdir(TMP)
-        print(f'TIME changed dir: {time.time() - t_start}')
+        print(f'TIME changed dir: {time.time() - t_start:.1f}s')
 
         # make a symbolic link to animodel
         # ani = Path(os.environ['FG_ANIMODEL_PATH'])
@@ -69,14 +69,11 @@ def score(scaffold, h, smiles, pdb_load):
         scaffold_m.RemoveAtom(int(h))
         scaffold = scaffold_m.GetMol()
         rmol._save_template(scaffold)
-        print(f'TIME prepped rmol: {time.time() - t_start}')
+        print(f'TIME prepped rmol: {time.time() - t_start:.1f}s')
 
         rmol.generate_conformers(num_conf=200, minimum_conf_rms=0.4)
-        print('Number of simple conformers: ', rmol.GetNumConformers())
-
         rmol.remove_clashing_confs(protein)
-        print(f'TIME conformers done: {time.time() - t_start}')
-        print('Number of conformers after removing clashes: ', rmol.GetNumConformers())
+        print(f'TIME conformers done: {time.time() - t_start:.1f}s')
 
         rmol.optimise_in_receptor(
             receptor_file=protein,
@@ -91,7 +88,7 @@ def score(scaffold, h, smiles, pdb_load):
         if rmol.GetNumConformers() == 0:
             raise Exception("No Conformers")
 
-        print(f'TIME opt done: {time.time() - t_start}')
+        print(f'TIME opt done: {time.time() - t_start:.1f}s')
         rmol.sort_conformers(energy_range=2) # kcal/mol
         affinities = rmol.gnina(receptor_file=protein)
         data = {
@@ -107,7 +104,7 @@ def score(scaffold, h, smiles, pdb_load):
         for k, v in tox.items():
             data[k] = v
 
-        print(f'Task: Completed the molecule generation in {time.time() - t_start} seconds. ')
+        print(f'TIME Completed the molecule generation in {time.time() - t_start:.1f}s.')
         return rmol, data
 
 
@@ -139,7 +136,7 @@ if __name__ == '__main__':
     config = get_gaussian_process_config()
     initial_chemical_space = "manual_init_h6_rgroups_linkers500.csv"
     config.virtual_library = initial_chemical_space
-    config.selection_config.num_elements = 10  # how many new to select
+    config.selection_config.num_elements = 5  # how many new to select
     config.selection_config.selection_columns = ["cnnaffinity", "Smiles", 'h', 'enamine_id']
     config.model_config.targets.params.feature_column = 'cnnaffinity'
     config.model_config.features.params.fingerprint_size = 2048
@@ -156,7 +153,7 @@ if __name__ == '__main__':
     next_selection = None
     mol_saving_queue = get_saving_queue()
     while True:
-        print(f"{datetime.datetime.now() - t_now}: Queue: {len(futures)} tasks. ")
+        print(f"{datetime.datetime.now() - t_now}: Queue: {len(futures)} tasks ")
 
         for future, args in list(futures.items()):
             if not future.done():
@@ -175,7 +172,7 @@ if __name__ == '__main__':
                 print('ERROR when scoring. Assigning a penalty. Error: ', E)
                 score = 0 # penalty
 
-            print(f"Updating: {al.virtual_library.loc[al.virtual_library.Smiles == smiles].to_markdown()}")
+            # print(f"Updating: {al.virtual_library.loc[al.virtual_library.Smiles == smiles]}, {smiles}")
             al.virtual_library.loc[al.virtual_library.Smiles == smiles, ['cnnaffinity', 'Training']] = score, True
 
         if len(futures) == 0:
@@ -194,7 +191,7 @@ if __name__ == '__main__':
 
             # select 20 random molecules
             for i, row in next_selection.iterrows():
-                futures[client.compute([score(scaffold, row.h, row.Smiles, pdb_load), ])[0]] = [row.Smiles]
+                futures[client.compute([evaluate(scaffold, row.h, row.Smiles, pdb_load), ])[0]] = row.Smiles
 
         time.sleep(5)
 
