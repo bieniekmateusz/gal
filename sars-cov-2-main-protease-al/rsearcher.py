@@ -90,7 +90,7 @@ def score(scaffold, h, smiles, pdb_load):
 
         # continue only if there are any conformers to be optimised
         if rmol.GetNumConformers() == 0:
-            return rmol, {'cnnaffinity': 0} # 0 as the worst score
+            return rmol, {"cnnaffinity": 0} # 0 as the worst score
         print(f'TIME opt done: {time.time() - t_start}')
 
         rmol.sort_conformers(energy_range=2) # kcal/mol
@@ -172,9 +172,9 @@ if __name__ == '__main__':
 
                 [rmol.SetProp(k, str(v)) for k, v in rmol_data.items()]
                 mol_saving_queue.put(rmol)
-                print("Updating the molecule's value", al.virtual_library.loc[al.virtual_library.Smiles == Chem.MolToSmiles(rmol)])
+                print("Updating: ", al.virtual_library.loc[al.virtual_library.Smiles == Chem.MolToSmiles(rmol)].to_markdown())
                 al.virtual_library.loc[al.virtual_library.Smiles == Chem.MolToSmiles(rmol),
-                                       ['cnnaffinity', 'Training']] = float(rmol_data.cnnaffinity), True
+                                       ['cnnaffinity', 'Training']] = float(rmol_data["cnnaffinity"]), True
             except Exception as E:
                 print('ERROR: Will be ignored. Continuing the main loop. Error: ', E)
                 continue
