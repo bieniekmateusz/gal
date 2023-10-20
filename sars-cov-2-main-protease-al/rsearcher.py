@@ -71,7 +71,7 @@ def evaluate(scaffold, h, smiles, pdb_load):
         rmol._save_template(scaffold)
         print(f'TIME prepped rmol: {time.time() - t_start:.1f}s')
 
-        rmol.generate_conformers(num_conf=200, minimum_conf_rms=0.4)
+        rmol.generate_conformers(num_conf=50, minimum_conf_rms=0.4)
         rmol.remove_clashing_confs(protein)
         print(f'TIME conformers done: {time.time() - t_start:.1f}s')
 
