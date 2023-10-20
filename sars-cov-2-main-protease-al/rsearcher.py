@@ -78,7 +78,7 @@ def evaluate(scaffold, h, smiles, pdb_load):
         rmol.optimise_in_receptor(
             receptor_file=protein,
             ligand_force_field="openff",
-            use_ani=False,
+            use_ani=True,
             sigma_scale_factor=0.8,
             relative_permittivity=4,
             water_model=None,
