@@ -38,7 +38,7 @@ except ImportError:
     # set up a local cluster just in case
     def create_cluster():
         from dask.distributed import LocalCluster
-        lc = LocalCluster(processes=True, threads_per_worker=1, n_workers=10)
+        lc = LocalCluster(processes=True, threads_per_worker=1, n_workers=28)
         lc.adapt(maximum_cores=28)
         return lc
 
@@ -59,6 +59,7 @@ def score(scaffold, h, smiles, pdb_load):
     with (tempfile.TemporaryDirectory() as TMP):
         TMP = Path(TMP)
         os.chdir(TMP)
+        print(smiles)
         print(f'TIME changed dir: {time.time() - t_start}')
 
         # make a symbolic link to animodel
@@ -93,7 +94,7 @@ def score(scaffold, h, smiles, pdb_load):
         rmol.optimise_in_receptor(
             receptor_file=protein,
             ligand_force_field="openff",
-            use_ani=False,
+            use_ani=True,
             sigma_scale_factor=0.8,
             relative_permittivity=4,
             water_model=None,
@@ -104,7 +105,7 @@ def score(scaffold, h, smiles, pdb_load):
         # continue only if there are any conformers to be optimised
         if rmol.GetNumConformers() == 0:
             rmol_data.cnnaffinity = 0.1
-
+            return rmol, rmol_data
         else:
             print(f'TIME opt done: {time.time() - t_start}')
 
@@ -210,7 +211,7 @@ if __name__ == '__main__':
     config = get_gaussian_process_config()
     initial_chemical_space = "manual_init.csv"
     config.virtual_library = initial_chemical_space
-    config.selection_config.num_elements = 20  # how many new to select
+    config.selection_config.num_elements = 100  # how many new to select
     config.selection_config.selection_columns = ["cnnaffinity", "Smiles", 'h', 'plip', 'sf1']
     config.model_config.targets.params.feature_column = 'sf1' # 'cnnaffinity'
     config.model_config.features.params.fingerprint_size = 2048
@@ -236,7 +237,6 @@ if __name__ == '__main__':
     pdb_load = open(pdb_f).read()
 
     next_selection = None
-
     while True:
         for future, args in list(futures.items()):
             if not future.done():
@@ -260,7 +260,8 @@ if __name__ == '__main__':
                     print(f"Warning: {feature_column} not found in rmol_data")
                     assert feature_value is not None # or some default value, or raise an exception
 
-                mol_saving_queue.put(rmol)
+
+                helpers.save(rmol)
                 al.virtual_library.loc[al.virtual_library.Smiles == Chem.MolToSmiles(rmol),
                                        [feature_column, 'Training']] = float(feature_value), True
             except Exception as E:
@@ -287,8 +288,11 @@ if __name__ == '__main__':
 
             # select 20 random molecules
             for i, row in next_selection.iterrows():
-                args = [scaffold, row.h, row.Smiles, pdb_load]
-                futures[client.compute([score(*args), ])[0]] = args
+                try:
+                    args = [scaffold, row.h, row.Smiles, pdb_load]
+                    futures[client.compute([score(*args), ])[0]] = args
+                except:
+                    pass
 
         time.sleep(5)
 
