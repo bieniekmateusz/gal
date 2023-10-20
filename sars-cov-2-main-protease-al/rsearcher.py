@@ -149,22 +149,22 @@ if __name__ == '__main__':
     print('Client', client)
 
     al = mal.ActiveLearner(config)
-    futures = {}
+    jobs = {}
     next_selection = None
     mol_saving_queue = get_saving_queue()
     while True:
-        print(f"{datetime.datetime.now() - t_now}: Queue: {len(futures)} tasks ")
+        print(f"{datetime.datetime.now() - t_now}: Queue: {len(jobs)} tasks ")
 
-        for future, args in list(futures.items()):
-            if not future.done():
+        for job, args in list(jobs.items()):
+            if not job.done():
                 continue
 
             # get back the original arguments
-            smiles = futures[future]
-            del futures[future]
+            smiles = jobs[job]
+            del jobs[job]
 
             try:
-                rmol, rmol_data = future.result()
+                rmol, rmol_data = job.result()
                 [rmol.SetProp(k, str(v)) for k, v in rmol_data.items()]
                 mol_saving_queue.put(rmol)
                 score = float(rmol_data["cnnaffinity"])
@@ -175,7 +175,7 @@ if __name__ == '__main__':
             # print(f"Updating: {al.virtual_library.loc[al.virtual_library.Smiles == smiles]}, {smiles}")
             al.virtual_library.loc[al.virtual_library.Smiles == smiles, ['cnnaffinity', 'Training']] = score, True
 
-        if len(futures) == 0:
+        if len(jobs) == 0:
             print(f'Iteration finished. Next.')
 
             # save the results from the previous iteration
@@ -190,8 +190,9 @@ if __name__ == '__main__':
             next_selection = al.get_next_best()
 
             # select 20 random molecules
-            for i, row in next_selection.iterrows():
-                futures[client.compute([evaluate(scaffold, row.h, row.Smiles, pdb_load), ])[0]] = row.Smiles
+            for_submission = [evaluate(scaffold, row.h, row.Smiles, pdb_load) for _, row in next_selection.iterrows()]
+            for job, (_, row) in zip(client.compute(for_submission), next_selection.iterrows()):
+                jobs[job] = row.Smiles
 
         time.sleep(5)
 
