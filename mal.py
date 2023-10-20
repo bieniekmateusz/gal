@@ -48,12 +48,11 @@ class ActiveLearner:
               f'Enamines Training: {len(self.virtual_library[self.virtual_library.enamine_id.notna() & self.virtual_library.Training == True])}')
 
     def report(self):
-        # select only the ones that have been chosen before
-        best_finds = self.virtual_library[self.virtual_library.cnnaffinity < -6]  # -6 is about 5% of the best cases
+        best_finds = self.virtual_library[self.feature_column].mean() #self.virtual_library[self.virtual_library[self.feature_column]]  # NOT BEST JUST ALL
         print(f"IT: {self.cycle}, lib: {len(self.virtual_library)}, "
               f"training: {len(self.virtual_library[self.virtual_library.Training])}, "
-              f"cnnaffinity no: {len(self.virtual_library[~self.virtual_library.cnnaffinity.isna()])}, "
-              f"<-6 cnnaff: {len(best_finds)}")
+              f"{self.feature_column} no: {len(self.virtual_library[~self.virtual_library[self.feature_column].isna()])}, "
+              f"mean {self.feature_column}: {best_finds}")
 
     def get_next_best(self):
         # in the first iteration there is no data, pick random molecules
@@ -89,11 +88,6 @@ class ActiveLearner:
         self.report()
 
 
-if os.path.exists("negative_oracle.csv"):
-    oracle = pd.read_csv("negative_oracle.csv")
-def compute_fegrow(smiles):
-    result = oracle[oracle.Smiles == smiles]
-    return {'cnnaffinity': result.cnnaffinity.values[0]}
 
 
 def expand_chemical_space(al):
@@ -128,6 +122,11 @@ if __name__ == '__main__':
             chosen_ones.at[i, 'cnnaffinity'] = result['cnnaffinity']
         al.csv_cycle_summary(chosen_ones)
         expand_chemical_space(al)
+
+        cfg_json = config.to_json()
+
+        with open(f'{i}_config.json', 'w') as fout:
+            fout.write(cfg_json)
 
     print('hi')
 

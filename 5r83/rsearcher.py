@@ -18,6 +18,7 @@ import logging
 import datetime
 import threading
 import queue
+import cProfile
 
 import dask
 from dask.distributed import Client, performance_report
@@ -31,7 +32,10 @@ import helpers
 from helpers import gen_intrns_dict, xstal_set, plip_score, sf1
 import fegrow
 
-# get hardware specific cluster
+
+log = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
 try:
     from mycluster import create_cluster
 except ImportError:
@@ -42,25 +46,31 @@ except ImportError:
         lc.adapt(maximum_cores=28)
         return lc
 
-# preload the dataframes
-rgroups = list(fegrow.RGroupGrid._load_molecules().Mol.values)
-linkers = list(fegrow.RLinkerGrid._load_molecules().Mol.values)
 
-log = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+# Define the modified sf1 function to operate on a dictionary
+def sf1(rmol_data_dict):
+    # Assert that rmol_data_dict contains the necessary data
+    required_keys = ['plip', 'interactions', 'cnn_ic50_norm', 'MW', 'QED', 'cnnaffinity']
+    missing_keys = [key for key in required_keys if key not in rmol_data_dict]
+
+    if missing_keys:
+        raise ValueError(f"Missing necessary data: {', '.join(missing_keys)}")
+
+    # Calculate the score
+    sf1 = rmol_data_dict['QED'] * rmol_data_dict['plip'] * (1 + (0.5 * len(rmol_data_dict['interactions']))) * (
+                10 ** (rmol_data_dict['cnnaffinity'] / rmol_data_dict['MW']))
+
+    return sf1
 
 
-class NoConformers(Exception):
-    pass
-
-def score(scaffold, h, smiles, pdb_load):
+@dask.delayed
+def evaluate(scaffold, h, smiles, pdb_load):
     t_start = time.time()
     fegrow.RMol.set_gnina(os.environ['FG_GNINA_PATH'])
-    with (tempfile.TemporaryDirectory() as TMP):
+    with tempfile.TemporaryDirectory() as TMP:
         TMP = Path(TMP)
         os.chdir(TMP)
-        print(smiles)
-        print(f'TIME changed dir: {time.time() - t_start}')
+        print(f'TIME changed dir: {time.time() - t_start:.1f}s')
 
         # make a symbolic link to animodel
         # ani = Path(os.environ['FG_ANIMODEL_PATH'])
@@ -80,17 +90,14 @@ def score(scaffold, h, smiles, pdb_load):
         scaffold_m.RemoveAtom(int(h))
         scaffold = scaffold_m.GetMol()
         rmol._save_template(scaffold)
-        print(f'TIME prepped rmol: {time.time() - t_start}')
-
-        rmol_data = helpers.Data()
+        print(f'TIME prepped rmol: {time.time() - t_start:.1f}s')
 
         rmol.generate_conformers(num_conf=50, minimum_conf_rms=0.4)
         print('Number of simple conformers: ', rmol.GetNumConformers())
 
         rmol.remove_clashing_confs(protein)
-        print(f'TIME conformers done: {time.time() - t_start}')
-        print('schedulerNumber of conformers after removing clashes: ', rmol.GetNumConformers())
-        print(f'SMILES: {smiles}')
+        print(f'TIME conformers done: {time.time() - t_start:.1f}s')
+
         rmol.optimise_in_receptor(
             receptor_file=protein,
             ligand_force_field="openff",
@@ -101,92 +108,50 @@ def score(scaffold, h, smiles, pdb_load):
             platform_name='CPU',
         )
 
-
-        # continue only if there are any conformers to be optimised
         if rmol.GetNumConformers() == 0:
-            rmol_data.cnnaffinity = 0.1
-            return rmol, rmol_data
-        else:
-            print(f'TIME opt done: {time.time() - t_start}')
+            raise Exception("No Conformers")
 
-            rmol.sort_conformers(energy_range=2) # kcal/mol
-            print('Using receptor: ', protein)
-            try:
-                affinities = rmol.gnina(receptor_file=protein)
-            except Exception as e:
-                print(e)
-            print('cnnaff : ', affinities)
-            rmol_data.cnnaffinity = affinities.CNNaffinity.values[0]
-            #rmol_data.cnnaffinity = -Descriptors.HeavyAtomMolWt(rmol) / 100
-            rmol_data.cnnaffinityIC50 = affinities["CNNaffinity->IC50s"].values[0]
-            #rmol_data.hydrogens = [atom.GetIdx() for atom in rmol.GetAtoms() if atom.GetAtomicNum() == 1]
+        print(f'TIME opt done: {time.time() - t_start:.1f}s')
+        rmol.sort_conformers(energy_range=2) # kcal/mol
+        affinities = rmol.gnina(receptor_file=protein)
+        data = {
+            "cnnaffinity": -affinities.CNNaffinity.values[0],
+            "cnnaffinityIC50": affinities["CNNaffinity->IC50s"].values[0],
+            "hydrogens": [atom.GetIdx() for atom in rmol.GetAtoms() if atom.GetAtomicNum() == 1]
+        }
 
 
 
+        tox = rmol.toxicity()
+        tox = dict(zip(list(tox.columns), list(tox.values[0])))
+        tox['MW'] = Descriptors.HeavyAtomMolWt(rmol)
+        for k, v in tox.items():
+            data[k] = v
 
-            tox = rmol.toxicity()
-            tox = dict(zip(list(tox.columns), list(tox.values[0])))
-            tox['MW'] = Descriptors.HeavyAtomMolWt(rmol)
-            for k, v in tox.items():
-                setattr(rmol_data, k, v)
+        # compute all props
+        print(f'Calculating PLIP')
 
-            # compute all props
-            print(f'Calculating PLIP')
-
-            plip_itrns = rmol.plip_interactions(receptor_file=protein)
-            plip_dict = gen_intrns_dict(plip_itrns)
-            rmol_data.interactions = set(plip_dict.keys())
-            rmol_data.plip += plip_score(xstal_set, rmol_data.interactions) * 50 # HYPERPARAM TO CHANGE
-            rmol_data.cnn_ic50_norm = rmol_data.cnnaffinityIC50 / rmol_data.MW
-            print('cnn: ', rmol_data.cnnaffinity)
-            print('cnnic50: ', rmol_data.cnnaffinityIC50)
-            print('cnnic50norm: ', rmol_data.cnn_ic50_norm)
-            rmol_data.sf1 = sf1(rmol_data)
-            print('sf1 = ', rmol_data.sf1)
-            print('rmol_data.interactions: ', rmol_data.interactions)
-            print('rmol_data.plip: ', rmol_data.plip)
-            print(f'Task: Completed the molecule generation in {time.time() - t_start} seconds. ')
+        plip_itrns = rmol.plip_interactions(receptor_file=protein)
+        plip_dict = gen_intrns_dict(plip_itrns)
+        data['interactions'] = set(plip_dict.keys())
+        data['plip'] += plip_score(xstal_set, rmol_data.interactions) * 50 # HYPERPARAM TO CHANGE
+        data['cnn_ic50_norm'] = data['cnnaffinityIC50'] / data['MW']
+        print('cnn: ', data['cnnaffinity'])
+        print('cnnic50: ', data['cnnaffinityIC50'])
+        print('mw: ', data['MW'])
+        print('cnn norm: ', data['cnn_ic50_norm'] / data['MW'])
+        data['sf1'] = sf1(data)
+        print('sf1 = ', data['sf1'])
+        print('rmol_data.interactions: ', data['interactions'])
+        print('rmol_data.plip: ', data['plip'])
+        print(f'Task: Completed the molecule generation in {time.time() - t_start} seconds. ')
         return rmol, rmol_data
 
 
-def expand_chemical_space(al):
-    """
-    Expand the chemical space. This is another selection problem.
-    Select the best performing "small", as the starting point ...
-    """
-    if al.virtual_library[al.virtual_library.Training == True].empty:
-        return
-
-    params = Chem.SmilesParserParams()
-    params.removeHs = False
-    for i, row in al.virtual_library[al.virtual_library.Training == True].iterrows():
-        mol = Chem.MolFromSmiles(row.Smiles, params=params)
-        Chem.AllChem.EmbedMolecule(mol)
-        hs = [a.GetIdx() for a in mol.GetAtoms() if a.GetAtomicNum() == 1]
-        smiles = build_smiles(mol, hs, rgroups)
-        new_smiles = smiles.assign(Training=False)  # fixme: this will break if we use a different keyword
-
-        extended = pd.concat([al.virtual_library, new_smiles], ignore_index=True)
-        al.virtual_library = extended
 
 
-def build_smiles(core, hs, groups):
-    """
-    Build a list of smiles that can be generated in theory
-    """
-    start = time.time()
-    smiless = []
-    hhooks = []
-    for h in hs:
-        for group in groups:
-            for linker in linkers:
-                core_linker = fegrow.build_molecules(core, linker, [h])[0]
-                new_mol = fegrow.build_molecules(core_linker, group)[0]
-                smiles = Chem.MolToSmiles(new_mol)
-                smiless.append(smiles)
-                hhooks.append(h)
-    print('Generated initial smiles in: ', time.time() - start)
-    return pd.DataFrame({'Smiles': smiless, 'h': hhooks})
+
+
 
 
 def get_saving_queue():
@@ -196,9 +161,15 @@ def get_saving_queue():
     def worker_saver():
         while True:
             mol = mol_saving_queue.get()
-            start = time.time()
-            helpers.save(mol)
-            print(f'Saved molecule in {time.time() - start}')
+            filename = Chem.MolToSmiles(Chem.RemoveHs(mol))
+
+            if os.path.exists(f'structures/{filename}.sdf'):
+                print('Overwriting the existing file')
+
+            with Chem.SDWriter(f'structures/{filename}.sdf') as SD:
+                SD.write(mol)
+                print(f'Wrote {filename}')
+
             mol_saving_queue.task_done()
 
     threading.Thread(target=worker_saver, daemon=False).start()
@@ -212,68 +183,61 @@ if __name__ == '__main__':
     initial_chemical_space = "manual_init.csv"
     config.virtual_library = initial_chemical_space
     config.selection_config.num_elements = 100  # how many new to select
-    config.selection_config.selection_columns = ["cnnaffinity", "Smiles", 'h', 'plip', 'sf1']
+    config.selection_config.selection_columns = ["cnnaffinity", "Smiles", 'h', 'plip', 'sf1', 'enamine_id']
     config.model_config.targets.params.feature_column = 'sf1' # 'cnnaffinity'
     config.model_config.features.params.fingerprint_size = 2048
+
+    pdb_load = open('rec_final.pdb').read()
+    scaffold = Chem.SDMolSupplier('5R83_core.sdf', removeHs=False)[0]
 
     t_now = datetime.datetime.now()
     client = Client(create_cluster())
     print('Client', client)
 
-    mol_saving_queue = get_saving_queue()
-
-    # load the initial molecule
-    scaffold = Chem.SDMolSupplier('5r83_coreh.sdf', removeHs=False)[0]
-    #scaffold_data = helpers.data(scaffold)
-    # if not os.path.exists(initial_chemical_space):
-    #     smiles = build_smiles(scaffold, [6], rgroups)
-    #     smiles.to_csv(initial_chemical_space, index=False)
-
     al = mal.ActiveLearner(config)
-    print('Initialised config')
-    futures = {}
-    pdb_f = 'rec_final.pdb'
-    print(f'Loading pdb: {os.getcwd()}/{pdb_f}') 
-    pdb_load = open(pdb_f).read()
-
+    jobs = {}
     next_selection = None
+    mol_saving_queue = get_saving_queue()
     while True:
-        for future, args in list(futures.items()):
-            if not future.done():
+        print(f"{datetime.datetime.now() - t_now}: Queue: {len(jobs)} tasks ")
+
+        for job, args in list(jobs.items()):
+            if not job.done():
                 continue
 
             # get back the original arguments
-            scaffold, h, smiles, _ = futures[future]
-            del futures[future]
+            smiles = jobs[job]
+            del jobs[job]
 
             try:
-                rmol, rmol_data = future.result()
-                rmol_data.cycle = al.cycle
-                helpers.set_properties(rmol, rmol_data)
+                rmol, rmol_data = job.result()
+                rmol_data['cycle'] = al.cycle  # TODO change to dict
+                [rmol.SetProp(k, str(v)) for k, v in rmol_data.items()] #adding values to rmoldata dict
+                mol_saving_queue.put(rmol)
+
+
                 feature_column = config.model_config.targets.params.feature_column
                 # Dynamic attribute access
-                if hasattr(rmol_data, feature_column):
-                    feature_value = getattr(rmol_data, feature_column)
-                    print('FEATURE COLUMN: ', feature_column)
-                    print('FEATURE VALUE: ', feature_value)
-                else:
-                    print(f"Warning: {feature_column} not found in rmol_data")
-                    assert feature_value is not None # or some default value, or raise an exception
+                feature_value = rmol_data[feature_column]
+                print('FEATURE COLUMN: ', feature_column)
+                print('FEATURE VALUE: ', feature_value)
 
 
-                helpers.save(rmol)
-                al.virtual_library.loc[al.virtual_library.Smiles == Chem.MolToSmiles(rmol),
-                                       [feature_column, 'Training']] = float(feature_value), True
+
             except Exception as E:
                 print('ERROR: Will be ignored. Continuing the main loop. Error: ', E)
-                continue
+                feature_value = 0
 
-        print(f"{datetime.datetime.now() - t_now}: Queue: {len(futures)} tasks. ")
 
-        if len(futures) == 0:
+            al.virtual_library.loc[al.virtual_library.Smiles == Chem.MolToSmiles(rmol),
+            [feature_column, 'Training']] = float(feature_value), True
+
+
+
+        if len(jobs) == 0:
             print(f'Iteration finished. Next.')
 
-            # expand_chemical_space(al)
+
 
             # save the results from the previous iteration
             if next_selection is not None:
@@ -284,15 +248,13 @@ if __name__ == '__main__':
 
                 al.csv_cycle_summary(next_selection)
 
+            # cProfile.run('next_selection = al.get_next_best()', filename='get_next_best.prof', sort=True)
             next_selection = al.get_next_best()
 
             # select 20 random molecules
-            for i, row in next_selection.iterrows():
-                try:
-                    args = [scaffold, row.h, row.Smiles, pdb_load]
-                    futures[client.compute([score(*args), ])[0]] = args
-                except:
-                    pass
+            for_submission = [evaluate(scaffold, row.h, row.Smiles, pdb_load) for _, row in next_selection.iterrows()]
+            for job, (_, row) in zip(client.compute(for_submission), next_selection.iterrows()):
+                jobs[job] = row.Smiles
 
         time.sleep(5)
 
