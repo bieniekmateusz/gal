@@ -10,16 +10,18 @@ from rdkit.Chem.FilterCatalog import SmartsMatcher
 rgroups = list(fegrow.RGroupGrid._load_molecules().Mol.values)
 linkers = list(fegrow.RLinkerGrid._load_molecules().Mol.values)
 
-linkers = linkers[:200]
+linkers = linkers[:400]
 h = 6 
 scaffold = Chem.SDMolSupplier('5r83_coreh.sdf', removeHs=False)[0]
 oo_matcher = SmartsMatcher('Oxygen-Oxygen', '[#8]-[#8]', minCount=0, maxCount=0)
+ss_matcher = SmartsMatcher('Sulphur-Sulphur', '[#16]-[#16]', minCount=0, maxCount=0)
+nitron_matcher = SmartsMatcher('NO2+-N', '[#7+]-[#7]', minCount=0, maxCount=0)
 
 def build_smiles(args):
     h, rgroup, linker = args
     core_linker = fegrow.build_molecules(scaffold, linker, [h])[0]
     new_mol = fegrow.build_molecules(core_linker, rgroup)[0]
-    if not oo_matcher.HasMatch(new_mol):
+    if not oo_matcher.HasMatch(new_mol) or not ss_matcher.HasMatch(new_mol) or not nitron_matcher.HasMatch(new_mol):
         smiles, h = None, None
     else:
         smiles = Chem.MolToSmiles(new_mol)

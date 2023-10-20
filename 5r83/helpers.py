@@ -49,7 +49,7 @@ def sf1(rmol_data):
         assert rmol_data.MW is not None, "MW is missing or None"
     except AssertionError as e:
         raise ValueError(f"Missing necessary data: {e}")
-    sf1 = (rmol_data.QED * rmol_data.plip * (1 + len(rmol_data.interactions))) * (10**(rmol_data.cnnaffinity) / rmol_data.MW) 
+    sf1 = rmol_data.QED * rmol_data.plip * (1 + (0.5*len(rmol_data.interactions))) * (10**(rmol_data.cnnaffinity / rmol_data.MW))
     return sf1
 
 
@@ -66,7 +66,7 @@ def set_properties(mol, data):
 def save(mol):
     print(f'cwd = {cwd}')
     filename = Chem.MolToSmiles(Chem.RemoveHs(mol))
-
+    #TODO add sf1 to filename
     if os.path.exists(f'{cwd}/structures/{filename}.sdf'):
         print('Overwriting the existing file')
     else:
