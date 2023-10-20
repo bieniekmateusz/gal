@@ -138,7 +138,8 @@ if __name__ == '__main__':
     config.virtual_library = initial_chemical_space
     config.selection_config.num_elements = 5  # how many new to select
     config.selection_config.selection_columns = ["cnnaffinity", "Smiles", 'h', 'enamine_id']
-    config.model_config.targets.params.feature_column = 'cnnaffinity'
+    feature = 'cnnaffinity'
+    config.model_config.targets.params.feature_column = feature
     config.model_config.features.params.fingerprint_size = 2048
 
     pdb_load = open('rec_final.pdb').read()
@@ -167,13 +168,13 @@ if __name__ == '__main__':
                 rmol, rmol_data = job.result()
                 [rmol.SetProp(k, str(v)) for k, v in rmol_data.items()]
                 mol_saving_queue.put(rmol)
-                score = float(rmol_data["cnnaffinity"])
+                score = float(rmol_data[feature])
             except Exception as E:
                 print('ERROR when scoring. Assigning a penalty. Error: ', E)
                 score = 0 # penalty
 
             # print(f"Updating: {al.virtual_library.loc[al.virtual_library.Smiles == smiles]}, {smiles}")
-            al.virtual_library.loc[al.virtual_library.Smiles == smiles, ['cnnaffinity', 'Training']] = score, True
+            al.virtual_library.loc[al.virtual_library.Smiles == smiles, [feature, 'Training']] = score, True
 
         if len(jobs) == 0:
             print(f'Iteration finished. Next.')
@@ -182,8 +183,8 @@ if __name__ == '__main__':
             if next_selection is not None:
                 for i, row in next_selection.iterrows():
                     # bookkeeping
-                    next_selection.loc[next_selection.Smiles == row.Smiles, ['cnnaffinity', 'Training']] = \
-                        al.virtual_library[al.virtual_library.Smiles == row.Smiles].cnnaffinity.values[0], True
+                    next_selection.loc[next_selection.Smiles == row.Smiles, [feature, 'Training']] = \
+                        al.virtual_library[al.virtual_library.Smiles == row.Smiles][feature].values[0], True
                 al.csv_cycle_summary(next_selection)
 
             # cProfile.run('next_selection = al.get_next_best()', filename='get_next_best.prof', sort=True)
