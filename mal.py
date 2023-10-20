@@ -26,7 +26,7 @@ from ncl_cycle import ALCycler
 
 class ActiveLearner:
     def __init__(self, config, initial_values=pd.DataFrame()):
-        self.feature = self.cycler._cycle_config.model_config.targets.params.feature_column
+        self.feature = config.model_config.targets.params.feature_column
         generated = Path('generated')
 
         previous_trainings = list(map(str, generated.glob('cycle_*/selection.csv')))
