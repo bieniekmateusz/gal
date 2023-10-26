@@ -56,13 +56,10 @@ class ActiveLearner:
               f"feature no: {len(self.virtual_library[~self.virtual_library[self.feature].isna()])}, "
               f"<-6 feature: {len(best_finds)}")
 
-    def get_next_best(self):
+    def get_next_best(self, force_random=False):
         # in the first iteration there is no data, pick random molecules
         not_null_rows = self.virtual_library[self.virtual_library[self.feature].notnull()]
-        if len(not_null_rows) == 0:
-            # there is nothing dedicated to Training yet
-            assert len(self.virtual_library[self.virtual_library.Training == True]) == 0
-
+        if len(not_null_rows) == 0 or force_random:
             random_starter = self.virtual_library.sample(self.cycler._cycle_config.selection_config.num_elements)
             return random_starter
 
