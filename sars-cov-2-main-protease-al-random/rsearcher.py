@@ -141,7 +141,6 @@ if __name__ == '__main__':
     feature = 'cnnaffinity'
     config.model_config.targets.params.feature_column = feature
     config.model_config.features.params.fingerprint_size = 2048
-    config.selection_config.selection_type = 'random'
 
     pdb_load = open('rec_final.pdb').read()
     scaffold = Chem.SDMolSupplier('5R83_core.sdf', removeHs=False)[0]
