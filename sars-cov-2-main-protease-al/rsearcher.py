@@ -16,16 +16,20 @@ import datetime
 import threading
 import queue
 import cProfile
+import functools
 
 import dask
+import numpy
 from dask.distributed import Client, performance_report
 from rdkit import Chem
+from rdkit.Chem import AllChem
 from rdkit.Chem import Descriptors
 import openmm.app
 import pandas as pd
 
 import fegrow
 
+import al_for_fep.models.sklearn_gaussian_process_model
 
 log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -37,9 +41,10 @@ except ImportError:
     # set up a local cluster just in case
     def create_cluster():
         from dask.distributed import LocalCluster
-        lc = LocalCluster(processes=True, threads_per_worker=1, n_workers=2)
-        lc.adapt(maximum_cores=2)
-        return lc
+        return LocalCluster()
+        # lc = LocalCluster(processes=True, threads_per_worker=1, n_workers=2)
+        # lc.adapt(maximum_cores=2)
+        # return lc
 
 
 @dask.delayed
@@ -129,6 +134,36 @@ def get_saving_queue():
     threading.Thread(target=worker_saver, daemon=False).start()
     return mol_saving_queue
 
+@dask.delayed
+def compute_fps(fingerprint_radius, fingerprint_size, smiless):
+    fingerprint_fn = functools.partial(
+        AllChem.GetMorganFingerprintAsBitVect,
+        radius=fingerprint_radius,
+        nBits=fingerprint_size)
+    return numpy.array([fingerprint_fn(Chem.MolFromSmiles(smiles)) for smiles in smiless])
+
+def dask_parse_feature_smiles_morgan_fingerprint(feature_dataframe, feature_column,
+    fingerprint_radius, fingerprint_size):
+    start = time.time()
+
+    smiless = feature_dataframe[feature_column].values
+    workers_num = client.nthreads().values()
+    results = client.compute([compute_fps(fingerprint_radius, fingerprint_size, smiles)
+                              for smiles in
+                              numpy.array_split(
+                                  smiless,
+                                  min(sum(workers_num), len(smiless)))])
+    fingerprints = numpy.concatenate([result.result() for result in results])
+    print(f"Computed {len(fingerprints)} fingerprints in {time.time() - start}")
+    return fingerprints
+import al_for_fep.data.utils
+al_for_fep.data.utils.parse_feature_smiles_morgan_fingerprint = dask_parse_feature_smiles_morgan_fingerprint
+
+def dask_tanimito_similarity(a, b):
+    print('hi')
+    pass
+
+al_for_fep.models.sklearn_gaussian_process_model._tanimoto_similarity = dask_tanimito_similarity
 
 if __name__ == '__main__':
     import mal
@@ -136,7 +171,7 @@ if __name__ == '__main__':
     config = get_gaussian_process_config()
     initial_chemical_space = "manual_init_h6_rgroups_linkers500.csv"
     config.virtual_library = initial_chemical_space
-    config.selection_config.num_elements = 5  # how many new to select
+    config.selection_config.num_elements = 3  # how many new to select
     config.selection_config.selection_columns = ["cnnaffinity", "Smiles", 'h', 'enamine_id']
     feature = 'cnnaffinity'
     config.model_config.targets.params.feature_column = feature
