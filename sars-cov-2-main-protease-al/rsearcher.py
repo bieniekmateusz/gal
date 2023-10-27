@@ -148,7 +148,7 @@ def dask_parse_feature_smiles_morgan_fingerprint(feature_dataframe, feature_colu
     start = time.time()
 
     smiless = feature_dataframe[feature_column].values
-    workers_num = client.nthreads().values()
+    workers_num = max(sum(client.nthreads().values()), 30) # assume minimum 30 workers
     results = client.compute([compute_fps(fingerprint_radius, fingerprint_size, smiles)
                               for smiles in
                               numpy.array_split(    # split smiless between the workers
