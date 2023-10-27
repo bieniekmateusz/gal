@@ -152,8 +152,7 @@ def dask_parse_feature_smiles_morgan_fingerprint(feature_dataframe, feature_colu
     results = client.compute([compute_fps(fingerprint_radius, fingerprint_size, smiles)
                               for smiles in
                               numpy.array_split(    # split smiless between the workers
-                                  smiless,
-                                  min(sum(workers_num), len(smiless)))])
+                                  smiless, min(workers_num, len(smiless)))])
     fingerprints = numpy.concatenate([result.result() for result in results])
     print(f"Computed {len(fingerprints)} fingerprints in {time.time() - start}")
     return fingerprints
