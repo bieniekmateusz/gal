@@ -168,6 +168,7 @@ if __name__ == '__main__':
                 [rmol.SetProp(k, str(v)) for k, v in rmol_data.items()]
                 mol_saving_queue.put(rmol)
                 score = float(rmol_data[feature])
+                print("Success: molecule evaluated. ")
             except Exception as E:
                 print('ERROR when scoring. Assigning a penalty. Error: ', E)
                 score = 0 # penalty
