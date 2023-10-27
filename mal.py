@@ -68,8 +68,8 @@ class ActiveLearner:
             chosen_ones, virtual_library_regression = self.cycler.run_cycle(self.virtual_library)
             print(f"Found next best {len(chosen_ones)} in: {time.time() - start_time:.1f}s")
 
-        enamines = virtual_library_regression[virtual_library_regression.enamine_id.notna() &
-                                              virtual_library_regression[self.feature].isna()]
+        enamines = self.virtual_library[self.virtual_library.enamine_id.notna() &
+                                              self.virtual_library[self.feature].isna()]
         if len(enamines) > 0:
             print(f"Adding on top {len(enamines)} Enamine molecules to be computed.")
 
