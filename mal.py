@@ -62,11 +62,12 @@ class ActiveLearner:
         # pick random molecules
         rows_not_yet_computed = self.virtual_library[~self.virtual_library[self.feature].notnull()]
         if len(rows_not_yet_computed) == len(self.virtual_library) or force_random:
+            print("Selecting random molecules to study. ")
             chosen_ones = rows_not_yet_computed.sample(self.cycler._cycle_config.selection_config.num_elements)
         else:
             start_time = time.time()
             chosen_ones, virtual_library_regression = self.cycler.run_cycle(self.virtual_library)
-            print(f"Found next best {len(chosen_ones)} in: {time.time() - start_time:.1f}s")
+            print(f"AL: generated next best {len(chosen_ones)} in: {time.time() - start_time:.1f}s")
 
         enamines = self.virtual_library[self.virtual_library.enamine_id.notna() &
                                               self.virtual_library[self.feature].isna()]
