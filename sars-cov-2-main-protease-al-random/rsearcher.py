@@ -94,7 +94,6 @@ def evaluate(scaffold, h, smiles, pdb_load):
         data = {
             "cnnaffinity": -affinities.CNNaffinity.values[0],
             "cnnaffinityIC50": affinities["CNNaffinity->IC50s"].values[0],
-            "hydrogens": [atom.GetIdx() for atom in rmol.GetAtoms() if atom.GetAtomicNum() == 1]
         }
 
         # other props
