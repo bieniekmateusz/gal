@@ -19,6 +19,7 @@ import cProfile
 import functools
 
 import dask
+from dask import array
 import numpy
 from dask.distributed import Client, performance_report
 from rdkit import Chem
@@ -150,7 +151,7 @@ def dask_parse_feature_smiles_morgan_fingerprint(feature_dataframe, feature_colu
     workers_num = client.nthreads().values()
     results = client.compute([compute_fps(fingerprint_radius, fingerprint_size, smiles)
                               for smiles in
-                              numpy.array_split(
+                              numpy.array_split(    # split smiless between the workers
                                   smiless,
                                   min(sum(workers_num), len(smiless)))])
     fingerprints = numpy.concatenate([result.result() for result in results])
@@ -160,9 +161,17 @@ import al_for_fep.data.utils
 al_for_fep.data.utils.parse_feature_smiles_morgan_fingerprint = dask_parse_feature_smiles_morgan_fingerprint
 
 def dask_tanimito_similarity(a, b):
-    print('hi')
-    pass
-
+    start = time.time()
+    chunk_size = 10_000
+    da = array.from_array(a, chunks=chunk_size)
+    db = array.from_array(b, chunks=chunk_size)
+    aa = array.sum(da, axis=1, keepdims=True)
+    bb = array.sum(db, axis=1, keepdims=True)
+    ab = array.matmul(da, db.T)
+    td = array.true_divide(ab, aa + bb.T - ab)
+    td_computed = td.compute()
+    print(f"Computed tanimoto similarity in {time.time() - start:.2f}s for array lengths {len(a)} and {len(b)}")
+    return td_computed
 al_for_fep.models.sklearn_gaussian_process_model._tanimoto_similarity = dask_tanimito_similarity
 
 if __name__ == '__main__':
