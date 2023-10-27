@@ -58,9 +58,9 @@ class ActiveLearner:
 
     def get_next_best(self, force_random=False):
         # in the first iteration there is no data, pick random molecules
-        not_null_rows = self.virtual_library[self.virtual_library[self.feature].notnull()]
-        if len(not_null_rows) == 0 or force_random:
-            random_starter = self.virtual_library.sample(self.cycler._cycle_config.selection_config.num_elements)
+        rows_not_yet_computed = self.virtual_library[~self.virtual_library[self.feature].notnull()]
+        if len(rows_not_yet_computed) == len(self.virtual_library) or force_random:
+            random_starter = rows_not_yet_computed.sample(self.cycler._cycle_config.selection_config.num_elements)
             return random_starter
 
         start_time = time.time()
