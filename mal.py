@@ -38,9 +38,9 @@ class ActiveLearner:
         if previous_trainings:
             # use the latest full .csv which already has Training set
             # instead of the initial one
-            config.virtual_library = str(generated / f"cycle_{len(previous_trainings)-1:04d}" / "virtual_library_with_predictions.csv")
+            config.virtual_library = str(generated / f"cycle_{len(previous_trainings):04d}" / "virtual_library_with_predictions.csv")
 
-        self.cycle = max(len(previous_trainings) - 1, 0)
+        self.cycle = max(len(previous_trainings), 0)
         self.cycler = ALCycler(config)
         self.virtual_library = self.cycler.get_virtual_library()
         print(f'Launching summary: Feature: {len(self.virtual_library[self.virtual_library[self.feature].notna()])}, '
