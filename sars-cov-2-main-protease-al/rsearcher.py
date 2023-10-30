@@ -162,7 +162,7 @@ def dask_parse_feature_smiles_morgan_fingerprint(feature_dataframe, feature_colu
 def dask_tanimito_similarity(a, b):
     print(f"About to compute tanimoto for array lengths {len(a)} and {len(b)}")
     start = time.time()
-    chunk_size = 10_000
+    chunk_size = 8_000
     da = array.from_array(a, chunks=chunk_size)
     db = array.from_array(b, chunks=chunk_size)
     aa = array.sum(da, axis=1, keepdims=True)
