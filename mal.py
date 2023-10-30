@@ -82,6 +82,7 @@ class ActiveLearner:
 
     def csv_cycle_summary(self, chosen_ones):
         cycle_dir = Path(f"generated/cycle_{self.cycle:04d}")
+        print(f"Next generation report saved: {cycle_dir}")
         cycle_dir.mkdir(exist_ok=True, parents=True)
         self.virtual_library.to_csv(cycle_dir / 'virtual_library_with_predictions.csv', index=False)
         chosen_ones.to_csv(cycle_dir / "selection.csv", columns=self.cycler._cycle_config.selection_config.selection_columns, index=False)
