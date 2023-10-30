@@ -156,12 +156,11 @@ def dask_parse_feature_smiles_morgan_fingerprint(feature_dataframe, feature_colu
     fingerprints = numpy.concatenate([result.result() for result in results])
     print(f"Computed {len(fingerprints)} fingerprints in {time.time() - start}")
     return fingerprints
-import al_for_fep.data.utils
-al_for_fep.data.utils.parse_feature_smiles_morgan_fingerprint = dask_parse_feature_smiles_morgan_fingerprint
+
 
 def dask_tanimito_similarity(a, b):
     start = time.time()
-    chunk_size = 10_000
+    chunk_size = 1000
     da = array.from_array(a, chunks=chunk_size)
     db = array.from_array(b, chunks=chunk_size)
     aa = array.sum(da, axis=1, keepdims=True)
@@ -171,9 +170,14 @@ def dask_tanimito_similarity(a, b):
     td_computed = td.compute()
     print(f"Computed tanimoto similarity in {time.time() - start:.2f}s for array lengths {len(a)} and {len(b)}")
     return td_computed
-al_for_fep.models.sklearn_gaussian_process_model._tanimoto_similarity = dask_tanimito_similarity
+
 
 if __name__ == '__main__':
+    # overwrite internals with Dask methods
+    import al_for_fep.data.utils
+    al_for_fep.data.utils.parse_feature_smiles_morgan_fingerprint = dask_parse_feature_smiles_morgan_fingerprint
+    al_for_fep.models.sklearn_gaussian_process_model._tanimoto_similarity = dask_tanimito_similarity
+
     import mal
     from al_for_fep.configs.simple_greedy_gaussian_process import get_config as get_gaussian_process_config
     config = get_gaussian_process_config()
