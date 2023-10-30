@@ -145,9 +145,10 @@ def compute_fps(fingerprint_radius, fingerprint_size, smiless):
 
 def dask_parse_feature_smiles_morgan_fingerprint(feature_dataframe, feature_column,
     fingerprint_radius, fingerprint_size):
+    smiless = feature_dataframe[feature_column].values
+    print(f"About to compute fingerprints for {len(smiless)} smiles ")
     start = time.time()
 
-    smiless = feature_dataframe[feature_column].values
     workers_num = max(sum(client.nthreads().values()), 30) # assume minimum 30 workers
     results = client.compute([compute_fps(fingerprint_radius, fingerprint_size, smiles)
                               for smiles in
@@ -159,8 +160,9 @@ def dask_parse_feature_smiles_morgan_fingerprint(feature_dataframe, feature_colu
 
 
 def dask_tanimito_similarity(a, b):
+    print(f"About to compute tanimoto for array lengths {len(a)} and {len(b)}")
     start = time.time()
-    chunk_size = 1000
+    chunk_size = 10_000
     da = array.from_array(a, chunks=chunk_size)
     db = array.from_array(b, chunks=chunk_size)
     aa = array.sum(da, axis=1, keepdims=True)
@@ -189,8 +191,8 @@ if __name__ == '__main__':
     config.model_config.targets.params.feature_column = feature
     config.model_config.features.params.fingerprint_size = 2048
 
-    pdb_load = open('rec_final.pdb').read()
-    scaffold = Chem.SDMolSupplier('5R83_core.sdf', removeHs=False)[0]
+    pdb_load = dask.delayed(open('rec_final.pdb').read())
+    scaffold = dask.delayed(Chem.SDMolSupplier('5R83_core.sdf', removeHs=False)[0])
 
     t_now = datetime.datetime.now()
     client = Client(create_cluster())
