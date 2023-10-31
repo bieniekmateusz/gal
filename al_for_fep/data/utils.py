@@ -95,9 +95,11 @@ def parse_feature_smiles_rdkit_properties(
       dataframe.
   """
   del args, kwargs  # Unused.
+  start = time.time()
   descriptors = [name for name, _ in Chem.Descriptors.descList]
   calculator = MoleculeDescriptors.MolecularDescriptorCalculator(descriptors)
 
+  print(f"Computed Descriptors in {time.time() - start} for {len(feature_dataframe)} rows")
   return np.array([
       np.array(calculator.CalcDescriptors(Chem.MolFromSmiles(smiles)))
       for smiles in feature_dataframe[feature_column]
@@ -120,11 +122,13 @@ def parse_feature_smiles_morgan_fingerprint_with_descriptors(
     Two dimensional array holding a concatenation of the Morgan fingerprint and
     the rdkit descriptor values for each input SMILES.
   """
+  start = time.time()
   fingerprint_features = parse_feature_smiles_morgan_fingerprint(
       feature_dataframe, feature_column, fingerprint_radius, fingerprint_size)
   descriptor_values = parse_feature_smiles_rdkit_properties(
       feature_dataframe, feature_column)
 
+  print(f"Computed Descriptors in {time.time() - start} for {len(feature_dataframe)} rows")
   return np.concatenate([fingerprint_features, descriptor_values], axis=1)
 
 
