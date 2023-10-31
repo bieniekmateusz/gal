@@ -7,6 +7,39 @@ from functools import partial
 import itertools as it
 from rdkit.Chem.FilterCatalog import SmartsMatcher
 
+
+rgroups = list(fegrow.RGroupGrid._load_molecules().Mol.values)
+linkers = list(fegrow.RLinkerGrid._load_molecules().Mol.values)
+
+prune_linkers = 200
+linkers = linkers[:prune_linkers]
+
+scaffold = Chem.SDMolSupplier('5r83_coreh.sdf', removeHs=False)[0]
+hs = [a.GetIdx() for a in scaffold.GetAtoms() if a.GetAtomicNum() == 1]
+
+def build_smiles(args):
+    h, rgroup, linker = args
+    core_linker = fegrow.build_molecules(scaffold, linker, [h])[0]
+    new_mol = fegrow.build_molecules(core_linker, rgroup)[0]
+    smiles = Chem.MolToSmiles(new_mol)
+    return smiles, h
+
+
+if __name__ == '__main__':
+    for h in hs:
+        all_combos = it.product([h], rgroups, linkers)
+        with Pool(20) as p:
+            results = p.map(build_smiles, all_combos)
+
+        with open(f'manual_init_h{h}_rgroups_linkers{prune_linkers}.csv', 'w') as OUT:
+            OUT.write('Smiles,h\n')
+            for smiles, h in results:
+                OUT.write(f'{smiles},{h}\n')
+
+
+
+
+'''
 rgroups = list(fegrow.RGroupGrid._load_molecules().Mol.values)
 linkers = list(fegrow.RLinkerGrid._load_molecules().Mol.values)
 
@@ -21,11 +54,11 @@ def build_smiles(args):
     h, rgroup, linker = args
     core_linker = fegrow.build_molecules(scaffold, linker, [h])[0]
     new_mol = fegrow.build_molecules(core_linker, rgroup)[0]
-    if not oo_matcher.HasMatch(new_mol) or not ss_matcher.HasMatch(new_mol) or not nitron_matcher.HasMatch(new_mol):
-        smiles, h = None, None
-    else:
-        smiles = Chem.MolToSmiles(new_mol)
-    return smiles, h
+    #if not oo_matcher.HasMatch(new_mol) or not ss_matcher.HasMatch(new_mol) or not nitron_matcher.HasMatch(new_mol):
+    #    smiles, h = None, None
+    #else:
+    #    smiles = Chem.MolToSmiles(new_mol)
+    return h, rgroup, linker 
 
 
 if __name__ == '__main__':
@@ -41,3 +74,4 @@ if __name__ == '__main__':
         OUT.write('Smiles,h\n')
         for smiles, h in filtered_results:
             OUT.write(f'{smiles},{h}\n')
+            '''
