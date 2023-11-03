@@ -23,7 +23,6 @@ class ALCycler(single_cycle_lib.MakitaCycle):
         training_pool = []
         for fileglob in self._cycle_config.training_pool.split(','):
             for filename in glob.glob(fileglob):
-                print('Reading previous selections')
                 training_pool.append(pd.read_csv(filename))
         if training_pool:
             training_pool_ids = pd.concat(training_pool)

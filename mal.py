@@ -33,7 +33,7 @@ class ActiveLearner:
         if config.training_pool != '':
             previous_trainings += [config.training_pool]
         config.training_pool = ','.join(previous_trainings)
-        print('Detected trainings: ', config.training_pool)
+        print(f'Detected {len(config.training_pool)} cycles. ')
 
         if previous_trainings:
             # use the latest full .csv which already has Training set
