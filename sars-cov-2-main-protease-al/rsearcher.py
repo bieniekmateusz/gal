@@ -77,7 +77,7 @@ def evaluate(scaffold, h, smiles, pdb_load):
         rmol._save_template(scaffold)
         print(f'TIME prepped rmol: {time.time() - t_start:.1f}s')
 
-        rmol.generate_conformers(num_conf=50, minimum_conf_rms=0.4)
+        rmol.generate_conformers(num_conf=50, minimum_conf_rms=0.2)
         rmol.remove_clashing_confs(protein)
         print(f'TIME conformers done: {time.time() - t_start:.1f}s')
 
@@ -186,13 +186,14 @@ if __name__ == '__main__':
     initial_chemical_space = "manual_init_h6_rgroups_linkers500.csv"
     config.virtual_library = initial_chemical_space
     config.selection_config.num_elements = 3  # how many new to select
-    config.selection_config.selection_columns = ["cnnaffinity", "Smiles", 'h', 'enamine_id']
+    config.selection_config.selection_columns = ["cnnaffinity", "Smiles", 'h', 'enamine_id', 'enamine_searched']
     feature = 'cnnaffinity'
     config.model_config.targets.params.feature_column = feature
     config.model_config.features.params.fingerprint_size = 2048
 
     pdb_load = dask.delayed(open('rec_final.pdb').read())
-    scaffold = dask.delayed(Chem.SDMolSupplier('5R83_core.sdf', removeHs=False)[0])
+    scaffold = Chem.SDMolSupplier('5R83_core.sdf', removeHs=False)[0]
+    scaffold_dask = dask.delayed(scaffold)
 
     t_now = datetime.datetime.now()
     client = Client(create_cluster())
@@ -237,11 +238,16 @@ if __name__ == '__main__':
                         al.virtual_library[al.virtual_library.Smiles == row.Smiles][feature].values[0], True
                 al.csv_cycle_summary(next_selection)
 
+
+            # for the best scoring molecules, add molecules from Enamine that are similar
+            # this way we ensure that the Enamine molecules will be evaluated
+            al.add_enamine_molecules(scaffold=scaffold)
+
             # cProfile.run('next_selection = al.get_next_best()', filename='get_next_best.prof', sort=True)
             next_selection = al.get_next_best()
 
             # select 20 random molecules
-            for_submission = [evaluate(scaffold, row.h, row.Smiles, pdb_load) for _, row in next_selection.iterrows()]
+            for_submission = [evaluate(scaffold_dask, row.h, row.Smiles, pdb_load) for _, row in next_selection.iterrows()]
             for job, (_, row) in zip(client.compute(for_submission), next_selection.iterrows()):
                 jobs[job] = row.Smiles
 

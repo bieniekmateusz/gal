@@ -17,7 +17,10 @@
 import os.path
 import time
 import pandas as pd
+import numpy
 from pathlib import Path
+
+from rdkit import Chem
 
 from al_for_fep.configs.simple_greedy_gaussian_process import get_config as get_gaussian_process_config
 import ncl_cycle
@@ -79,6 +82,72 @@ class ActiveLearner:
     def set_feature_result(self, smiles, value):
         self.virtual_library.loc[self.virtual_library.Smiles == smiles,
                                  [self.feature, ncl_cycle.TRAINING_KEY]] = value, True
+
+    def add_enamine_molecules(self, number=300, similarity_cutoff=0.6, scaffold=None):
+        """
+        For the best scoring molecules that were grown,
+        check if there are similar molecules in Enamine REAL database,
+        if they are, add them to the dataset.
+
+        @number: The maximum number of molecules that
+            should be added from the Enamine REAL database.
+        @similarity_cutoff: Molecules queried from the database have to be
+            at least this similar to the original query.
+        @scaffold: The scaffold molecule that has to be present in the search.
+            If None, the requirement will be ignored.
+        """
+
+        # get the best performing molecules
+        vl = self.virtual_library.sort_values(by='cnnaffinity')
+        best_vl = vl[:100]
+
+        if len(set(best_vl.h)) > 1:
+            raise NotImplementedError('Multiple growth vectors are used. ')
+
+        # filter out previously queried molecules
+        new_searches = best_vl[best_vl.enamine_searched == False]
+        smiles = list(new_searches.Smiles)
+
+        smiles = smiles[:2] # fixme - for testing
+
+        print('Querying Enamine REAL. ')
+        from smallworld_api import SmallWorld
+        sw = SmallWorld()
+        results: pd.DataFrame = sw.search_many(smiles, dist=5, db=sw.REAL_dataset, length=100)
+
+        results.sort_values(by='ecfp4', inplace=True, ascending=False)
+        similar = results[results['ecfp4'] > similarity_cutoff]
+
+        # select the top 300 similar ones
+        top_similar = similar[:300]
+
+        # check if they have the necessary core group
+        if scaffold is not None:
+            with_scaffold = []
+            for i, row in top_similar.iterrows():
+                mol = Chem.MolFromSmiles(row.hitSmiles)
+                if mol.HasSubstructMatch(scaffold):
+                    with_scaffold.append(True)
+                else:
+                    with_scaffold.append(False)
+
+            if with_scaffold:
+                top_similar = top_similar[with_scaffold]
+                print(f"Enamine: Testing scaffold presence. Kept {sum(with_scaffold)}/{len(with_scaffold)}.")
+
+        # filter out Enamine molecules which were previously added
+        new_enamines = top_similar[~top_similar.id.isin(vl.enamine_id)]
+
+        # fixme: automate creating empty dataframes. Allow to configure default values initially.
+        new_df = pd.DataFrame({'Smiles': new_enamines.hitSmiles,
+                      self.feature: numpy.nan,
+                      'h': vl.h[0], # fixme: for now assume that only one vector is used
+                      'enamine_id': new_enamines.id,
+                      'enamine_searched': False,
+                      'Training': False })
+
+        self.virtual_library = pd.concat([vl, new_df], ignore_index=True)
+
 
     def csv_cycle_summary(self, chosen_ones):
         cycle_dir = Path(f"generated/cycle_{self.cycle:04d}")
