@@ -18,6 +18,7 @@ import os.path
 import time
 import pandas as pd
 import numpy
+import requests
 from pathlib import Path
 
 from rdkit import Chem
@@ -113,7 +114,11 @@ class ActiveLearner:
         print('Querying Enamine REAL. ')
         from smallworld_api import SmallWorld
         sw = SmallWorld()
-        results: pd.DataFrame = sw.search_many(smiles, dist=5, db=sw.REAL_dataset, length=100)
+        try:
+            results: pd.DataFrame = sw.search_many(smiles, dist=5, db=sw.REAL_dataset, length=100)
+        except requests.exceptions.HTTPError as HTTPError:
+            print("Enamine API call failed. ", HTTPError)
+            return
         print(f"Enamine returned with {len(results)} rows.")
 
         results.sort_values(by='ecfp4', inplace=True, ascending=False)
