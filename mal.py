@@ -114,6 +114,7 @@ class ActiveLearner:
         from smallworld_api import SmallWorld
         sw = SmallWorld()
         results: pd.DataFrame = sw.search_many(smiles, dist=5, db=sw.REAL_dataset, length=100)
+        print(f"Enamine returned with {len(results)} rows.")
 
         results.sort_values(by='ecfp4', inplace=True, ascending=False)
         similar = results[results['ecfp4'] > similarity_cutoff]
@@ -146,6 +147,7 @@ class ActiveLearner:
                       'enamine_searched': False,
                       'Training': False })
 
+        print("Adding: ", len(new_df))
         self.virtual_library = pd.concat([vl, new_df], ignore_index=True)
 
 
