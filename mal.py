@@ -132,9 +132,10 @@ class ActiveLearner:
                 else:
                     with_scaffold.append(False)
 
-            if with_scaffold:
+            print(f"Enamine: Testing scaffold presence. Kept {sum(with_scaffold)}/{len(with_scaffold)}.")
+            if len(with_scaffold) > 0:
                 top_similar = top_similar[with_scaffold]
-                print(f"Enamine: Testing scaffold presence. Kept {sum(with_scaffold)}/{len(with_scaffold)}.")
+
 
         # filter out Enamine molecules which were previously added
         new_enamines = top_similar[~top_similar.id.isin(vl.enamine_id)]
