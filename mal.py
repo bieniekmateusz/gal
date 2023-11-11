@@ -108,7 +108,7 @@ class ActiveLearner:
         new_searches = best_vl[best_vl.enamine_searched == False]
         smiles = list(new_searches.Smiles)
 
-        smiles = smiles[:2] # fixme - for testing
+        # smiles = smiles[:2] # fixme - for testing
 
         print('Querying Enamine REAL. ')
         from smallworld_api import SmallWorld
@@ -132,7 +132,7 @@ class ActiveLearner:
                 else:
                     with_scaffold.append(False)
 
-            print(f"Enamine: Testing scaffold presence. Kept {sum(with_scaffold)}/{len(with_scaffold)}.")
+            print(f"Enamine. Testing scaffold presence. Kept {sum(with_scaffold)}/{len(with_scaffold)}.")
             if len(with_scaffold) > 0:
                 top_similar = top_similar[with_scaffold]
 
