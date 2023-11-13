@@ -111,6 +111,7 @@ class ActiveLearner:
 
         # smiles = smiles[:2] # fixme - for testing
 
+        start = time.time()
         print('Querying Enamine REAL. ')
         from smallworld_api import SmallWorld
         sw = SmallWorld()
@@ -119,7 +120,7 @@ class ActiveLearner:
         except requests.exceptions.HTTPError as HTTPError:
             print("Enamine API call failed. ", HTTPError)
             return
-        print(f"Enamine returned with {len(results)} rows.")
+        print(f"Enamine returned with {len(results)} rows in {time.time() - start:.2f}s.")
 
         results.sort_values(by='ecfp4', inplace=True, ascending=False)
         similar = results[results['ecfp4'] > similarity_cutoff]
