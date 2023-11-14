@@ -16,6 +16,8 @@
 """Entry point for running a single cycle of active learning."""
 import os.path
 import time
+import warnings
+
 import pandas as pd
 import numpy
 import requests
@@ -124,24 +126,28 @@ class ActiveLearner:
 
         results.sort_values(by='ecfp4', inplace=True, ascending=False)
         similar = results[results['ecfp4'] > similarity_cutoff]
-
-        # select the top 300 similar ones
-        top_similar = similar[:300]
+        print(f"ECFP4 similarity cutoff applied: {len(similar)} remaining. ")
 
         # check if they have the necessary core group
         if scaffold is not None:
             with_scaffold = []
-            for i, row in top_similar.iterrows():
-                mol = Chem.MolFromSmiles(row.hitSmiles)
-                if mol.HasSubstructMatch(scaffold):
-                    with_scaffold.append(True)
-                else:
+            for i, row in similar.iterrows():
+                try:
+                    mol = Chem.MolFromSmiles(row.hitSmiles)
+                    if mol.HasSubstructMatch(scaffold):
+                        with_scaffold.append(True)
+                    else:
+                        with_scaffold.append(False)
+                except Exception as E:
+                    warnings.warn("Checking if the Enamine molecule has the scaffold failed: " + str(E))
                     with_scaffold.append(False)
 
-            print(f"Enamine. Testing scaffold presence. Kept {sum(with_scaffold)}/{len(with_scaffold)}.")
+            print(f"Tested scaffold presence. Kept {sum(with_scaffold)}/{len(with_scaffold)}.")
             if len(with_scaffold) > 0:
-                top_similar = top_similar[with_scaffold]
+                similar = similar[with_scaffold]
 
+        # select the top 300 cases
+        top_similar = similar[:300]
 
         # filter out Enamine molecules which were previously added
         new_enamines = top_similar[~top_similar.id.isin(vl.enamine_id)]
