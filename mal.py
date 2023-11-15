@@ -118,7 +118,7 @@ class ActiveLearner:
         from smallworld_api import SmallWorld
         sw = SmallWorld()
         try:
-            results: pd.DataFrame = sw.search_many(smiles, dist=5, db=sw.REAL_dataset, length=100)
+            results: pd.DataFrame = sw.search_many(smiles, dist=5, db=sw.REAL_dataset, length=500)
         except requests.exceptions.HTTPError as HTTPError:
             print("Enamine API call failed. ", HTTPError)
             return
