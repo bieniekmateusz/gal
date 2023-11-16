@@ -104,6 +104,10 @@ class ActiveLearner:
         vl = self.virtual_library.sort_values(by='cnnaffinity')
         best_vl_for_searching = vl[:100]
 
+        # nothing to search for yet
+        if len(best_vl_for_searching[~best_vl_for_searching.cnnaffinity.isna()]) == 0:
+            return
+
         if len(set(best_vl_for_searching.h)) > 1:
             raise NotImplementedError('Multiple growth vectors are used. ')
 
