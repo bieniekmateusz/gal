@@ -86,7 +86,7 @@ class ActiveLearner:
         self.virtual_library.loc[self.virtual_library.Smiles == smiles,
                                  [self.feature, ncl_cycle.TRAINING_KEY]] = value, True
 
-    def add_enamine_molecules(self, number=300, similarity_cutoff=0.6, scaffold=None):
+    def add_enamine_molecules(self, scaffold, limit=300, similarity_cutoff=0.2):
         """
         For the best scoring molecules that were grown,
         check if there are similar molecules in Enamine REAL database,
@@ -102,52 +102,52 @@ class ActiveLearner:
 
         # get the best performing molecules
         vl = self.virtual_library.sort_values(by='cnnaffinity')
-        best_vl = vl[:100]
+        best_vl_for_searching = vl[:100]
 
-        if len(set(best_vl.h)) > 1:
+        if len(set(best_vl_for_searching.h)) > 1:
             raise NotImplementedError('Multiple growth vectors are used. ')
 
         # filter out previously queried molecules
-        new_searches = best_vl[best_vl.enamine_searched == False]
-        smiles = list(new_searches.Smiles)
-
-        # smiles = smiles[:2] # fixme - for testing
+        new_searches = best_vl_for_searching[best_vl_for_searching.enamine_searched == False]
+        smiles_to_search = list(new_searches.Smiles)
 
         start = time.time()
         print('Querying Enamine REAL. ')
         from smallworld_api import SmallWorld
         sw = SmallWorld()
         try:
-            results: pd.DataFrame = sw.search_many(smiles, dist=5, db=sw.REAL_dataset, length=500)
+            results: pd.DataFrame = sw.search_many(smiles_to_search, dist=5, db=sw.REAL_dataset, length=5000)
         except requests.exceptions.HTTPError as HTTPError:
             print("Enamine API call failed. ", HTTPError)
             return
         print(f"Enamine returned with {len(results)} rows in {time.time() - start:.2f}s.")
 
-        results.sort_values(by='ecfp4', inplace=True, ascending=False)
+        # check if they have the necessary core group
+        with_scaffold = []
+        for i, row in results.iterrows():
+            try:
+                mol = Chem.MolFromSmiles(row.hitSmiles)
+                if mol.HasSubstructMatch(scaffold):
+                    with_scaffold.append(True)
+                else:
+                    with_scaffold.append(False)
+            except Exception as E:
+                warnings.warn("Checking if the Enamine molecule has the scaffold failed: " + str(E))
+                with_scaffold.append(False)
+
+        print(f"Tested scaffold presence. Kept {sum(with_scaffold)}/{len(with_scaffold)}.")
+
+        if len(with_scaffold) > 0:
+            similar = results[with_scaffold]
+        else:
+            similar = pd.DataFrame(columns=results.columns)
+
+        similar.sort_values(by='ecfp4', inplace=True, ascending=False)
         similar = results[results['ecfp4'] > similarity_cutoff]
         print(f"ECFP4 similarity cutoff applied: {len(similar)} remaining. ")
 
-        # check if they have the necessary core group
-        if scaffold is not None:
-            with_scaffold = []
-            for i, row in similar.iterrows():
-                try:
-                    mol = Chem.MolFromSmiles(row.hitSmiles)
-                    if mol.HasSubstructMatch(scaffold):
-                        with_scaffold.append(True)
-                    else:
-                        with_scaffold.append(False)
-                except Exception as E:
-                    warnings.warn("Checking if the Enamine molecule has the scaffold failed: " + str(E))
-                    with_scaffold.append(False)
-
-            print(f"Tested scaffold presence. Kept {sum(with_scaffold)}/{len(with_scaffold)}.")
-            if len(with_scaffold) > 0:
-                similar = similar[with_scaffold]
-
         # select the top 300 cases
-        top_similar = similar[:300]
+        top_similar = similar[:limit]
 
         # filter out Enamine molecules which were previously added
         new_enamines = top_similar[~top_similar.id.isin(vl.enamine_id)]
