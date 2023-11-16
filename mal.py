@@ -86,7 +86,7 @@ class ActiveLearner:
         self.virtual_library.loc[self.virtual_library.Smiles == smiles,
                                  [self.feature, ncl_cycle.TRAINING_KEY]] = value, True
 
-    def add_enamine_molecules(self, scaffold, limit=300, similarity_cutoff=0.2):
+    def add_enamine_molecules(self, scaffold, limit=300):
         """
         For the best scoring molecules that were grown,
         check if there are similar molecules in Enamine REAL database,
@@ -143,8 +143,6 @@ class ActiveLearner:
             similar = pd.DataFrame(columns=results.columns)
 
         similar.sort_values(by='ecfp4', inplace=True, ascending=False)
-        similar = results[results['ecfp4'] > similarity_cutoff]
-        print(f"ECFP4 similarity cutoff applied: {len(similar)} remaining. ")
 
         # select the top 300 cases
         top_similar = similar[:limit]
