@@ -155,7 +155,7 @@ class Enamine:
     def search_smiles(self, smiles):
         start = time.time()
         with ThreadPoolExecutor(max_workers=100) as pool:
-            dfs = list(pool.map(Enamine.get_molecules, smiles_to_search))
+            dfs = list(pool.map(Enamine.get_molecules, smiles))
 
         mols = pd.concat([df for df in dfs if len(df) > 0])
         print(f"Found {len(mols)} in {time.time() - start}")
