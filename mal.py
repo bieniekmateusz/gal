@@ -126,11 +126,21 @@ class ActiveLearner:
             return
         print(f"Enamine returned with {len(results)} rows in {time.time() - start:.2f}s.")
 
+        # protonate
+        import subprocess
+        def obabel_protonate(smi):
+            return subprocess.run(['obabel', f'-:{smi}', '-osmi', '-p', '7', '-xh'],
+                                  capture_output=True).stdout.decode().strip()
+        results['hitSmiles'] = results['hitSmiles'].map(obabel_protonate)
+
         # check if they have the necessary core group
         with_scaffold = []
+        params = Chem.SmilesParserParams()
+        params.removeHs = False
         for i, row in results.iterrows():
             try:
-                mol = Chem.MolFromSmiles(row.hitSmiles)
+                mol = Chem.MolFromSmiles(row.hitSmiles, params=params)
+                Chem.AddHs(mol)
                 if mol.HasSubstructMatch(scaffold):
                     with_scaffold.append(True)
                 else:
@@ -156,11 +166,11 @@ class ActiveLearner:
 
         # fixme: automate creating empty dataframes. Allow to configure default values initially.
         new_df = pd.DataFrame({'Smiles': new_enamines.hitSmiles,
-                      self.feature: numpy.nan,
-                      'h': vl.h[0], # fixme: for now assume that only one vector is used
-                      'enamine_id': new_enamines.id,
-                      'enamine_searched': False,
-                      'Training': False })
+                               self.feature: numpy.nan,
+                               'h': vl.h[0], # fixme: for now assume that only one vector is used
+                               'enamine_id': new_enamines.id,
+                               'enamine_searched': False,
+                               'Training': False })
 
         print("Adding: ", len(new_df))
         self.virtual_library = pd.concat([vl, new_df], ignore_index=True)
