@@ -28,7 +28,7 @@ from rdkit import Chem
 from al_for_fep.configs.simple_greedy_gaussian_process import get_config as get_gaussian_process_config
 import ncl_cycle
 from ncl_cycle import ALCycler
-
+from enamine import Enamine
 
 class ActiveLearner:
     def __init__(self, config, initial_values=pd.DataFrame()):
@@ -53,6 +53,8 @@ class ActiveLearner:
               f'Training: {len(self.virtual_library[self.virtual_library.Training == True])}, '
               f'Enamines: {len(self.virtual_library[self.virtual_library.enamine_id.notna()])}, '
               f'Enamines Training: {len(self.virtual_library[self.virtual_library.enamine_id.notna() & self.virtual_library.Training == True])}')
+
+        self.enamine = Enamine()
 
     def report(self):
         # select only the ones that have been chosen before
@@ -117,10 +119,8 @@ class ActiveLearner:
 
         start = time.time()
         print('Querying Enamine REAL. ')
-        from smallworld_api import SmallWorld
-        sw = SmallWorld()
         try:
-            results: pd.DataFrame = sw.search_many(smiles_to_search, dist=5, db=sw.REAL_dataset, length=5000)
+            results: pd.DataFrame = self.enamine.search_smiles(smiles_to_search)
         except requests.exceptions.HTTPError as HTTPError:
             print("Enamine API call failed. ", HTTPError)
             return
