@@ -155,7 +155,7 @@ class ActiveLearner:
         # specifically, the hydrogen was replaced and has to be removed
         # for now we assume we only are growing one vector at a time - fixme
         scaffold_noh = Chem.EditableMol(scaffold)
-        scaffold_noh.RemoveAtom(int(best_vl_for_searching.h[0]))
+        scaffold_noh.RemoveAtom(int(best_vl_for_searching.iloc[0].h))
         dask_scaffold = dask.delayed(scaffold_noh.GetMol())
 
         start = time.time()
