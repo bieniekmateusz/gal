@@ -176,7 +176,7 @@ class ActiveLearner:
                                'Training': False })
 
         print("Adding: ", len(new_df))
-        self.virtual_library = pd.concat([vl, new_df], ignore_index=True)
+        self.virtual_library = pd.concat([self.virtual_library, new_df], ignore_index=True)
 
 
     def csv_cycle_summary(self, chosen_ones):
