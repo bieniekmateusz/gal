@@ -124,7 +124,7 @@ class Enamine:
             return
 
         assert len(hit_list_id) == 1, hit_list_id
-        params = {"hlid": hit_list_id.pop(), "start": 0, "length": 1000, "draw": 0}
+        params = {"hlid": hit_list_id.pop(), "start": 0, "length": 100, "draw": 0}
         params = {**params, **Enamine.VALID_COLUMNS}
 
         response_molecules: requests.Response = Enamine.session.get(
