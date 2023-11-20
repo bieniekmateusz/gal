@@ -131,7 +131,10 @@ class ActiveLearner:
         def obabel_protonate(smi):
             return subprocess.run(['obabel', f'-:{smi}', '-osmi', '-p', '7', '-xh'],
                                   capture_output=True).stdout.decode().strip()
+
+        start = time.time()
         results['hitSmiles'] = results['hitSmiles'].map(obabel_protonate)
+        print(f"Obabel protonation finished in {time.time() - start:.2f}s.")
 
         # check if they have the necessary core group
         with_scaffold = []
