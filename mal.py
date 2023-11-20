@@ -152,22 +152,18 @@ class ActiveLearner:
         print(f"Enamine returned with {len(results)} rows in {time.time() - start:.1f}s.")
 
         start = time.time()
-        protonation_jobs = self.client.compute([ActiveLearner._obabel_protonate(smi.rsplit(maxsplit=1)[0])
-                                                for smi in results.hitSmiles.values])
-        protonated_smiles = [job.result() for job in protonation_jobs]
-        results['hitSmiles'] = protonated_smiles
-        print(f"Dask obabel protonation finished in {time.time() - start:.2f}s.")
+        # protonate and check for scaffold
+        dask_scaffold = dask.delayed(scaffold)
+        delayed_protonations = [ActiveLearner._obabel_protonate(smi.rsplit(maxsplit=1)[0])
+                            for smi in results.hitSmiles.values]
+        jobs = self.client.compute([ActiveLearner._scaffold_check(smih, dask_scaffold)
+                                             for smih in delayed_protonations])
+        scaffold_mask = [job.result() for job in jobs]
+        print(f"Dask obabel protonation + scaffold test finished in {time.time() - start:.2f}s.")
+        print(f"Tested scaffold presence. Kept {sum(scaffold_mask)}/{len(scaffold_mask)}.")
 
-        start = time.time()
-        d_scaffold = dask.delayed(scaffold)
-        scaffold_jobs = self.client.compute([ActiveLearner._scaffold_check(smi, d_scaffold)
-                                              for smi in results.hitSmiles.values])
-        saffold_mask = [job.result() for job in scaffold_jobs]
-        print(f"Tested scaffold presence. Kept {sum(saffold_mask)}/{len(saffold_mask)}.")
-        print(f"Dask scaffold check done in {time.time() - start:.2f}s.")
-
-        if len(saffold_mask) > 0:
-            similar = results[saffold_mask]
+        if len(scaffold_mask) > 0:
+            similar = results[scaffold_mask]
         else:
             similar = pd.DataFrame(columns=results.columns)
 
