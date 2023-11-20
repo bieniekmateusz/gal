@@ -166,10 +166,10 @@ class ActiveLearner:
                             for smi in results.hitSmiles.values]
         jobs = self.client.compute([ActiveLearner._scaffold_check(smih, dask_scaffold)
                                              for smih in delayed_protonations])
-        results = [job.result() for job in jobs]
-        scaffold_mask = [r[0] for r in results]
+        scaffold_test_results = [job.result() for job in jobs]
+        scaffold_mask = [r[0] for r in scaffold_test_results]
         # smiles None means that the molecule did not have our scaffold
-        protonated_smiles = [r[1] for r in results if r[1] is not None]
+        protonated_smiles = [r[1] for r in scaffold_test_results if r[1] is not None]
         print(f"Dask obabel protonation + scaffold test finished in {time.time() - start:.2f}s.")
         print(f"Tested scaffold presence. Kept {sum(scaffold_mask)}/{len(scaffold_mask)}.")
 
