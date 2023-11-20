@@ -67,7 +67,7 @@ class ActiveLearner:
               f"feature no: {len(self.virtual_library[~self.virtual_library[self.feature].isna()])}, "
               f"<-6 feature: {len(best_finds)}")
 
-    def get_next_best(self, force_random=False):
+    def get_next_best(self, force_random=False, add_enamines=0):
         self.cycle += 1
 
         # pick random molecules
@@ -80,12 +80,14 @@ class ActiveLearner:
             chosen_ones, virtual_library_regression = self.cycler.run_cycle(self.virtual_library)
             print(f"AL: generated next best {len(chosen_ones)} in: {time.time() - start_time:.1f}s")
 
-        enamines = self.virtual_library[self.virtual_library.enamine_id.notna() &
-                                              self.virtual_library[self.feature].isna()]
-        if len(enamines) > 0:
-            print(f"Adding on top {len(enamines)} Enamine molecules to be computed.")
+        if add_enamines > 0:
+            enamines = self.virtual_library[self.virtual_library.enamine_id.notna() &
+                                                  self.virtual_library[self.feature].isna()]
+            if len(enamines) > 0:
+                print(f"Adding on top {len(enamines)} Enamine molecules to be computed.")
+                chosen_ones = pd.concat([chosen_ones, enamines])
 
-        return pd.concat([chosen_ones, enamines])
+        return chosen_ones
 
     def set_feature_result(self, smiles, value):
         self.virtual_library.loc[self.virtual_library.Smiles == smiles,
