@@ -101,18 +101,18 @@ class ActiveLearner:
 
     @staticmethod
     @dask.delayed
-    def _scaffold_check(smi, scaffold):
+    def _scaffold_check(smih, scaffold):
         params = Chem.SmilesParserParams()
         params.removeHs = False
 
-        mol = Chem.MolFromSmiles(smi, params=params)
+        mol = Chem.MolFromSmiles(smih, params=params)
         if mol is None:
-            return False
+            return False, None
 
         if mol.HasSubstructMatch(scaffold):
-            return True
+            return True, smih
 
-        return False
+        return False, None
 
 
     def add_enamine_molecules(self, scaffold, limit=300):
@@ -166,33 +166,32 @@ class ActiveLearner:
                             for smi in results.hitSmiles.values]
         jobs = self.client.compute([ActiveLearner._scaffold_check(smih, dask_scaffold)
                                              for smih in delayed_protonations])
-        scaffold_mask = [job.result() for job in jobs]
+        results = [job.result() for job in jobs]
+        scaffold_mask = [r[0] for r in results]
+        # smiles None means that the molecule did not have our scaffold
+        protonated_smiles = [r[1] for r in results if r[1] is not None]
         print(f"Dask obabel protonation + scaffold test finished in {time.time() - start:.2f}s.")
         print(f"Tested scaffold presence. Kept {sum(scaffold_mask)}/{len(scaffold_mask)}.")
 
         if len(scaffold_mask) > 0:
             similar = results[scaffold_mask]
+            similar['hitSmiles'] = protonated_smiles
         else:
             similar = pd.DataFrame(columns=results.columns)
 
-        similar = similar.sort_values(by='ecfp4', ascending=False)
-
-        # select the top 300 cases
-        top_similar = similar[:limit]
-
         # filter out Enamine molecules which were previously added
-        new_enamines = top_similar[~top_similar.id.isin(vl.enamine_id)]
+        new_enamines = similar[~similar.id.isin(vl.enamine_id)]
 
         # fixme: automate creating empty dataframes. Allow to configure default values initially.
-        new_df = pd.DataFrame({'Smiles': new_enamines.hitSmiles,
+        new_enamines_df = pd.DataFrame({'Smiles': new_enamines.hitSmiles,
                                self.feature: numpy.nan,
                                'h': vl.h[0], # fixme: for now assume that only one vector is used
                                'enamine_id': new_enamines.id,
                                'enamine_searched': False,
                                'Training': False })
 
-        print("Adding: ", len(new_df))
-        self.virtual_library = pd.concat([self.virtual_library, new_df], ignore_index=True)
+        print("Adding: ", len(new_enamines_df))
+        self.virtual_library = pd.concat([self.virtual_library, new_enamines_df], ignore_index=True)
 
     def csv_cycle_summary(self, chosen_ones):
         cycle_dir = Path(f"generated/cycle_{self.cycle:04d}")
