@@ -149,7 +149,7 @@ class ActiveLearner:
         except requests.exceptions.HTTPError as HTTPError:
             print("Enamine API call failed. ", HTTPError)
             return
-        print(f"Enamine returned with {len(results)} rows in {time.time() - start:.2f}s.")
+        print(f"Enamine returned with {len(results)} rows in {time.time() - start:.1f}s.")
 
         start = time.time()
         protonation_jobs = self.client.compute([ActiveLearner._obabel_protonate(smi.rsplit(maxsplit=1)[0])
