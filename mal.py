@@ -151,9 +151,15 @@ class ActiveLearner:
             return
         print(f"Enamine returned with {len(results)} rows in {time.time() - start:.1f}s.")
 
+        # prepare the scaffold for testing its presence
+        # specifically, the hydrogen was replaced and has to be removed
+        # for now we assume we only are growing one vector at a time - fixme
+        scaffold_noh = Chem.EditableMol(scaffold)
+        scaffold_noh.RemoveAtom(int(best_vl_for_searching.h[0]))
+        dask_scaffold = dask.delayed(scaffold_noh.GetMol())
+
         start = time.time()
         # protonate and check for scaffold
-        dask_scaffold = dask.delayed(scaffold)
         delayed_protonations = [ActiveLearner._obabel_protonate(smi.rsplit(maxsplit=1)[0])
                             for smi in results.hitSmiles.values]
         jobs = self.client.compute([ActiveLearner._scaffold_check(smih, dask_scaffold)
@@ -185,7 +191,6 @@ class ActiveLearner:
 
         print("Adding: ", len(new_df))
         self.virtual_library = pd.concat([self.virtual_library, new_df], ignore_index=True)
-
 
     def csv_cycle_summary(self, chosen_ones):
         cycle_dir = Path(f"generated/cycle_{self.cycle:04d}")
