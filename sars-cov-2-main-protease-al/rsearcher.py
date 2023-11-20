@@ -199,7 +199,7 @@ if __name__ == '__main__':
     client = Client(create_cluster())
     print('Client', client)
 
-    al = mal.ActiveLearner(config)
+    al = mal.ActiveLearner(config, client)
     jobs = {}
     next_selection = None
     mol_saving_queue = get_saving_queue()

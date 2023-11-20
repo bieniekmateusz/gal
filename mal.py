@@ -17,6 +17,7 @@
 import os.path
 import time
 import warnings
+import subprocess
 
 import pandas as pd
 import numpy
@@ -24,6 +25,7 @@ import requests
 from pathlib import Path
 
 from rdkit import Chem
+import dask
 
 from al_for_fep.configs.simple_greedy_gaussian_process import get_config as get_gaussian_process_config
 import ncl_cycle
@@ -31,7 +33,7 @@ from ncl_cycle import ALCycler
 from enamine import Enamine
 
 class ActiveLearner:
-    def __init__(self, config, initial_values=pd.DataFrame()):
+    def __init__(self, config, client, initial_values=pd.DataFrame()):
         self.feature = config.model_config.targets.params.feature_column
         generated = Path('generated')
 
@@ -55,6 +57,7 @@ class ActiveLearner:
               f'Enamines Training: {len(self.virtual_library[self.virtual_library.enamine_id.notna() & self.virtual_library.Training == True])}')
 
         self.enamine = Enamine()
+        self.client = client
 
     def report(self):
         # select only the ones that have been chosen before
@@ -88,6 +91,25 @@ class ActiveLearner:
         self.virtual_library.loc[self.virtual_library.Smiles == smiles,
                                  [self.feature, ncl_cycle.TRAINING_KEY]] = value, True
 
+    @staticmethod
+    @dask.delayed
+    def _obabel_protonate(smi):
+        return subprocess.run(['obabel', f'-:{smi}', '-osmi', '-p', '7', '-xh'],
+                              capture_output=True).stdout.decode().strip()
+
+    @staticmethod
+    @dask.delayed
+    def _scaffold_check(smi, scaffold):
+        params = Chem.SmilesParserParams()
+        params.removeHs = False
+
+        mol = Chem.MolFromSmiles(smi, params=params)
+        if mol.HasSubstructMatch(scaffold):
+            return True
+
+        return False
+
+
     def add_enamine_molecules(self, scaffold, limit=300):
         """
         For the best scoring molecules that were grown,
@@ -104,7 +126,7 @@ class ActiveLearner:
 
         # get the best performing molecules
         vl = self.virtual_library.sort_values(by='cnnaffinity')
-        best_vl_for_searching = vl[:100]
+        best_vl_for_searching = vl[:4]
 
         # nothing to search for yet
         if len(best_vl_for_searching[~best_vl_for_searching.cnnaffinity.isna()]) == 0:
@@ -126,36 +148,23 @@ class ActiveLearner:
             return
         print(f"Enamine returned with {len(results)} rows in {time.time() - start:.2f}s.")
 
-        # protonate
-        import subprocess
-        def obabel_protonate(smi):
-            return subprocess.run(['obabel', f'-:{smi}', '-osmi', '-p', '7', '-xh'],
-                                  capture_output=True).stdout.decode().strip()
+        start = time.time()
+        protonation_jobs = self.client.compute([ActiveLearner._obabel_protonate(smi.rsplit(maxsplit=1)[0])
+                                                for smi in results.hitSmiles.values])
+        protonated_smiles = [job.result() for job in protonation_jobs]
+        results['hitSmiles'] = protonated_smiles
+        print(f"Dask obabel protonation finished in {time.time() - start:.2f}s.")
 
         start = time.time()
-        results['hitSmiles'] = results['hitSmiles'].map(obabel_protonate)
-        print(f"Obabel protonation finished in {time.time() - start:.2f}s.")
+        d_scaffold = dask.delayed(scaffold)
+        scaffold_jobs = self.client.compute([ActiveLearner._scaffold_check(smi, d_scaffold)
+                                              for smi in results.hitSmiles.values])
+        saffold_mask = [job.result() for job in scaffold_jobs]
+        print(f"Tested scaffold presence. Kept {sum(saffold_mask)}/{len(saffold_mask)}.")
+        print(f"Dask scaffold check done in {time.time() - start:.2f}s.")
 
-        # check if they have the necessary core group
-        with_scaffold = []
-        params = Chem.SmilesParserParams()
-        params.removeHs = False
-        for i, row in results.iterrows():
-            try:
-                mol = Chem.MolFromSmiles(row.hitSmiles, params=params)
-                Chem.AddHs(mol)
-                if mol.HasSubstructMatch(scaffold):
-                    with_scaffold.append(True)
-                else:
-                    with_scaffold.append(False)
-            except Exception as E:
-                warnings.warn("Checking if the Enamine molecule has the scaffold failed: " + str(E))
-                with_scaffold.append(False)
-
-        print(f"Tested scaffold presence. Kept {sum(with_scaffold)}/{len(with_scaffold)}.")
-
-        if len(with_scaffold) > 0:
-            similar = results[with_scaffold]
+        if len(saffold_mask) > 0:
+            similar = results[saffold_mask]
         else:
             similar = pd.DataFrame(columns=results.columns)
 
