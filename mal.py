@@ -104,6 +104,9 @@ class ActiveLearner:
         params.removeHs = False
 
         mol = Chem.MolFromSmiles(smi, params=params)
+        if mol is None:
+            return False
+
         if mol.HasSubstructMatch(scaffold):
             return True
 
