@@ -171,7 +171,7 @@ class ActiveLearner:
         else:
             similar = pd.DataFrame(columns=results.columns)
 
-        similar.sort_values(by='ecfp4', inplace=True, ascending=False)
+        similar = similar.sort_values(by='ecfp4', ascending=False)
 
         # select the top 300 cases
         top_similar = similar[:limit]
