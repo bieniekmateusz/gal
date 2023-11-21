@@ -7,6 +7,7 @@ Changes:
 """
 import requests
 import warnings
+from typing import Iterable
 import re
 import json
 import pandas as pd
@@ -155,22 +156,49 @@ class Enamine:
     def close(self):
         Enamine.session.close()
 
-    def search_smiles(self, smiles):
+    def search_smiles(self, smiles: Iterable[str], remove_duplicates=False, max_workers=10):
+        """
+        Search
+        Args:
+            smiles: a bag of smiles that you'd like to search for
+            remove_duplicates: ensure the found Smiles are unique. If the same Smiles were found with different query smiles,
+                remove the duplicates. This means you will not be able to recover which Smiles led to
+
+        Returns:
+
+        """
         start = time.time()
-        with ThreadPoolExecutor(max_workers=10) as pool:
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
             dfs = list(pool.map(Enamine.get_molecules, smiles))
 
         mols = pd.concat([df for df in dfs if len(df) > 0])
+
+        if remove_duplicates:
+            mols.drop_duplicates(subset='id', inplace=True)
+
         print(f"Found {len(mols)} in {time.time() - start}")
         return mols
 
 
-if __name__ == '__main__':
+
+def test_duplicates():
     enamine = Enamine()
 
-    smiles_to_search = list(pd.read_csv('it62_best_smiles_to_scan.csv').Smiles)[:5]
-    # smiles_to_search = ['O=C(C)Oc1ccccc1C(=O)O', 'C=C(Cl)CNC(=O)C1(CC)CCC1', 'C=C(Cl)CNC(=O)C1(CC)CCC1']
-    mols = enamine.search_smiles(smiles_to_search)
+    # note the duplicate query Smiles
+    smiles_to_search = ['O=C(C)Oc1ccccc1C(=O)O', 'C=C(Cl)CNC(=O)C1(CC)CCC1', 'C=C(Cl)CNC(=O)C1(CC)CCC1']
+    mols = enamine.search_smiles(smiles_to_search, remove_duplicates=True)
+
+    assert len(mols) <= 230 # assumes 100 results per search, the extra 30 is for the randomness
+
     print(mols)
 
     enamine.close()
+
+if __name__ == '__main__':
+    test_duplicates()
+
+    # enamine = Enamine()
+    # smiles_to_search = list(pd.read_csv('it62_best_smiles_to_scan.csv').Smiles)[:5]
+    # mols = enamine.search_smiles(smiles_to_search, remove_duplicates=False)
+    # print(mols)
+    # enamine.close()
