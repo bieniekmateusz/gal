@@ -67,14 +67,22 @@ class ActiveLearner:
               f"feature no: {len(self.virtual_library[~self.virtual_library[self.feature].isna()])}, "
               f"<-6 feature: {len(best_finds)}")
 
-    def get_next_best(self, force_random=False, add_enamines=0):
+    def get_next_best(self, force_random=False, add_enamines=0, diverse_start=False):
         self.cycle += 1
 
         # pick random molecules
         rows_not_yet_computed = self.virtual_library[~self.virtual_library[self.feature].notnull()]
         if len(rows_not_yet_computed) == len(self.virtual_library) or force_random:
-            print("Selecting random molecules to study. ")
-            chosen_ones = rows_not_yet_computed.sample(self.cycler._cycle_config.selection_config.num_elements)
+            if diverse_start:
+                # TODO retrieve mols from chemical space with these rgroups by finding all smiles that were created \
+                #  from these rgroup IDs (ID is currently nan)
+
+                print("Using diverse initial molecules. ")
+                chosen_ones = self.diverse_sample(rows_not_yet_computed, \
+                                                  self.cycler._cycle_config.selection_config.num_elements)
+            else:
+                print("Selecting random molecules to study. ")
+                chosen_ones = rows_not_yet_computed.sample(self.cycler._cycle_config.selection_config.num_elements)
         else:
             start_time = time.time()
             chosen_ones, virtual_library_regression = self.cycler.run_cycle(self.virtual_library)
@@ -88,6 +96,53 @@ class ActiveLearner:
                 chosen_ones = pd.concat([chosen_ones, enamines])
 
         return chosen_ones
+
+    def diverse_sample(self, n_select, *args, **kwargs):
+        rgroup_df = pd.read_csv('rgroups_clust_df.csv')
+        # linker_df = pd.read_csv('linkers_clustered.csv') # Uncomment if linkers are to be used
+        # TODO add linkers_clust_df.csv
+        dfs = [rgroup_df]  # Add linker_df to the list if needed
+        thresh = 0.6
+        selected_molecules = []
+
+        for df in dfs:
+            clusters = df['cluster'].unique()
+            picked_list = []
+            cluster_dfs = []
+            for cluster in clusters:
+                cluster_df = df[df['cluster'] == cluster]
+                fps = cluster_df['fp'].apply(self.row_to_bitvect).tolist()
+
+                picker = rdSimDivPickers.LeaderPicker()
+                picked_indices = list(picker.LazyBitVectorPick(fps, len(fps), thresh))
+                # for current rgroup/linker libraries 2 mols is fine, since ~10 clusters from each means ~20 mols from
+                # rgroups & linkers, so 20^2 = 400 mols per cycle
+                # different libraries and this will need to be changed
+                fp1 = fps[picked_indices[0]]
+                fp2 = fps[picked_indices[1]]
+
+                similarity = DataStructs.FingerprintSimilarity(fp1, fp2)
+
+                print(f"for cluster {cluster}: \n picked smiles : {cluster_df['Smiles'].iloc[picked_indices[0]]} and "
+                      f"{cluster_df['Smiles'].iloc[picked_indices[1]]}, "
+                      f"their tanimoto similarity is {similarity}")
+
+                picked_list.append(picked_indices)
+                clust_pick_df = cluster_df.iloc[picked_indices[:2]]
+                cluster_dfs.append(clust_pick_df)
+                print(f'for cluster {cluster} picked {len(picked_indices)} mols')
+                selected_molecules.extend(clust_pick_df)
+
+
+            # Concatenate all the DataFrames from each cluster into one
+            pick_df = pd.concat(cluster_dfs, ignore_index=True)
+
+        return pick_df
+
+
+
+
+
 
     def set_feature_result(self, smiles, value):
         self.virtual_library.loc[self.virtual_library.Smiles == smiles,
