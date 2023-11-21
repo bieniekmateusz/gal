@@ -175,7 +175,7 @@ class ActiveLearner:
 
         if len(scaffold_mask) > 0:
             similar = results[scaffold_mask]
-            similar['hitSmiles'] = protonated_smiles
+            similar.hitSmiles = protonated_smiles
         else:
             similar = pd.DataFrame(columns=results.columns)
 
