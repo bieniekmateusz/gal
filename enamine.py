@@ -6,6 +6,7 @@ Changes:
  - a session is shared for simultaneous requests using threading
 """
 import requests
+import warnings
 import re
 import json
 import pandas as pd
@@ -75,9 +76,11 @@ class Enamine:
 
     @staticmethod
     def parse_hitlist_results(response, *args, **kwargs):
+        response.enamine_results = list()
         try:
             if not response.json()["recordsTotal"]:
-                raise Exception(f'There are {response.json()["recordsTotal"]} hits in the reply')
+                warnings.warn(f'There are {response.json()["recordsTotal"]} hits in the reply')
+                return
         except requests.exceptions.ChunkedEncodingError:
             pass
 
