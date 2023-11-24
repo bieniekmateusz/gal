@@ -38,10 +38,10 @@ class ActiveLearner:
         generated = Path('generated')
 
         previous_trainings = list(map(str, generated.glob('cycle_*/selection.csv')))
-        if config.training_pool != '':
+        if config.training_pool.strip() != '':
             previous_trainings += [config.training_pool]
+        print(f'Detected {len(previous_trainings)} selection.csv which define the Training. ')
         config.training_pool = ','.join(previous_trainings)
-        print(f'Detected {len(config.training_pool)} cycles. ')
 
         if previous_trainings:
             # use the latest full .csv which already has Training set
