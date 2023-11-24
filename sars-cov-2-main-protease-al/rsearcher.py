@@ -251,6 +251,6 @@ if __name__ == '__main__':
             for job, (_, row) in zip(client.compute(for_submission), next_selection.iterrows()):
                 jobs[job] = row.Smiles
 
-        time.sleep(5)
+        time.sleep(10)
 
     mol_saving_queue.join()
