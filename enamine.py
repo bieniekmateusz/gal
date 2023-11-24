@@ -82,12 +82,15 @@ class Enamine:
             if not response.json()["recordsTotal"]:
                 warnings.warn(f'There are {response.json()["recordsTotal"]} hits in the reply')
                 return
+
+            reply_data = response.json()['data']
+            if not reply_data:
+                raise Exception('There is no `data` in the reply!')
         except requests.exceptions.ChunkedEncodingError:
             pass
-
-        reply_data = response.json()['data']
-        if not reply_data:
-            raise Exception('There is no `data` in the reply!')
+        except requests.exceptions.JSONDecodeError as E:
+            warnings.warn("Parsing molecules from a hitlist  has failed due to: " + str(E))
+            return
 
         # expand the first column
         df1 = pd.DataFrame([row[0] for row in reply_data])
