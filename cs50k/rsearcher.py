@@ -1,30 +1,17 @@
 """
 Using a known chemical space, carry out hyperparameter scanning for AL.
 """
-import copy
 import time
-import sys
-import tempfile
-import os
-from pathlib import Path
-import logging
-import datetime
-import threading
-import queue
-import cProfile
 import functools
 
 import dask
 from dask import array
-import numpy
-from dask.distributed import Client, performance_report
+from dask.distributed import Client
 from rdkit import Chem
 from rdkit.Chem import AllChem
-from rdkit.Chem import Descriptors
-import openmm.app
 import pandas as pd
+import numpy as np
 
-import fegrow
 
 import al_for_fep.models.sklearn_gaussian_process_model
 
@@ -44,7 +31,7 @@ def compute_fps(fingerprint_radius, fingerprint_size, smiless):
         AllChem.GetMorganFingerprintAsBitVect,
         radius=fingerprint_radius,
         nBits=fingerprint_size)
-    return numpy.array([fingerprint_fn(Chem.MolFromSmiles(smiles)) for smiles in smiless])
+    return np.array([fingerprint_fn(Chem.MolFromSmiles(smiles)) for smiles in smiless])
 
 
 def dask_parse_feature_smiles_morgan_fingerprint(feature_dataframe, feature_column,
@@ -56,9 +43,9 @@ def dask_parse_feature_smiles_morgan_fingerprint(feature_dataframe, feature_colu
     workers_num = max(sum(client.nthreads().values()), 30) # assume minimum 30 workers
     results = client.compute([compute_fps(fingerprint_radius, fingerprint_size, smiles)
                               for smiles in
-                              numpy.array_split(    # split smiless between the workers
+                              np.array_split(    # split smiless between the workers
                                   smiless, min(workers_num, len(smiless)))])
-    fingerprints = numpy.concatenate([result.result() for result in results])
+    fingerprints = np.concatenate([result.result() for result in results])
     print(f"Computed {len(fingerprints)} fingerprints in {time.time() - start}")
     return fingerprints
 
@@ -87,10 +74,10 @@ if __name__ == '__main__':
     import mal
     from al_for_fep.configs.simple_greedy_gaussian_process import get_config as get_gaussian_process_config
     config = get_gaussian_process_config()
-    initial_chemical_space = "manual_init_h6_rgroups_linkers100.csv"
+    initial_chemical_space = "manual_init_h6_rgroups_linkers100_scorable.csv"
     config.virtual_library = initial_chemical_space
     config.selection_config.num_elements = 20  # how many new to select
-    config.selection_config.selection_columns = ["cnnaffinity", "Smiles", 'h', 'enamine_id', 'enamine_searched']
+    config.selection_config.selection_columns = ["cnnaffinity", "Smiles", 'h', 'enamine_id', 'enamine_searched', 'fid']
     feature = 'cnnaffinity'
     config.model_config.targets.params.feature_column = feature
     config.model_config.features.params.fingerprint_size = 2048
@@ -98,13 +85,29 @@ if __name__ == '__main__':
     client = Client(create_cluster())
     print('Client', client)
 
+    # load the chemical space results
+    oracle = pd.read_csv("cs_scored.csv", index_col="fid", usecols=["fid", "cnnaffinity"])
+
     al = mal.ActiveLearner(config, client)
-    for iteration in range(5):
-        print(f'Iteration {iteration} finished. Next.')
-        next_selection = al.get_next_best()
+    for iteration in range(3):
+        print(f'> Iteration {iteration} finished. Next.')
+        selection = al.get_next_best()
 
-        # fixme - look up the values
-        for_submission = [evaluate(next_selection) for _, row in next_selection.iterrows()]
-        al.virtual_library.loc[al.virtual_library.Smiles == smiles, [feature, 'Training']] = score, True
+        # look up the precomputed values
+        # use our FEgrow ID for identifying the molecules
+        selection.set_index("fid")
+        selection['Training'] = True
+        results = selection.merge(oracle, on=["fid"])
+        # get the affinities, note that we make them negative for AL
+        selection.cnnaffinity = -results.cnnaffinity_y.values
+        np.testing.assert_array_less(selection.cnnaffinity, 0)
 
-        al.csv_cycle_summary(next_selection)
+        # assert np.all(chosen_ones.Smiles.values == oracle_has_spoken.Smiles.values)
+
+        # update the main library
+        print(al.virtual_library.dtypes)
+        al.virtual_library.update(selection)
+        print(al.virtual_library.dtypes)
+        al.virtual_library = al.virtual_library.astype({'Training': bool})
+
+        al.csv_cycle_summary(selection)
