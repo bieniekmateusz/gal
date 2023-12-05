@@ -99,25 +99,12 @@ if __name__ == '__main__':
     print('Client', client)
 
     al = mal.ActiveLearner(config, client)
-    jobs = {}
-    next_selection = None
-    while True:
-        if len(jobs) == 0:
-            print(f'Iteration finished. Next.')
+    for iteration in range(5):
+        print(f'Iteration {iteration} finished. Next.')
+        next_selection = al.get_next_best()
 
-            # save the results from the previous iteration
-            if next_selection is not None:
-                for i, row in next_selection.iterrows():
-                    # bookkeeping
-                    next_selection.loc[next_selection.Smiles == row.Smiles, [feature, 'Training']] = \
-                        al.virtual_library[al.virtual_library.Smiles == row.Smiles][feature].values[0], True
-                al.csv_cycle_summary(next_selection)
+        # fixme - look up the values
+        for_submission = [evaluate(next_selection) for _, row in next_selection.iterrows()]
+        al.virtual_library.loc[al.virtual_library.Smiles == smiles, [feature, 'Training']] = score, True
 
-            next_selection = al.get_next_best()
-
-            # fixme - look up the values
-            for_submission = [evaluate(next_selection) for _, row in next_selection.iterrows()]
-            al.virtual_library.loc[al.virtual_library.Smiles == smiles, [feature, 'Training']] = score, True
-        time.sleep(5)
-
-    mol_saving_queue.join()
+        al.csv_cycle_summary(next_selection)
