@@ -24,7 +24,9 @@ import numpy
 import requests
 from pathlib import Path
 
-from rdkit import Chem
+from rdkit import Chem, DataStructs
+from rdkit.DataStructs.cDataStructs import ExplicitBitVect
+from rdkit.SimDivFilters import rdSimDivPickers
 import dask
 
 from al_for_fep.configs.simple_greedy_gaussian_process import get_config as get_gaussian_process_config
@@ -67,6 +69,12 @@ class ActiveLearner:
               f"feature no: {len(self.virtual_library[~self.virtual_library[self.feature].isna()])}, "
               f"<-6 feature: {len(best_finds)}")
 
+    def row_to_bitvect(self, row):
+        bit_string = row#''.join(str(int(bit)) for bit in row)
+        bit_vect = DataStructs.CreateFromBitString(bit_string)
+        return ExplicitBitVect(bit_vect.ToBinary())
+        #return DataStructs.ExplicitBitVect.FromBitString(bit_string)
+
     def get_next_best(self, force_random=False, add_enamines=0, diverse_start=False):
         self.cycle += 1
 
@@ -98,46 +106,60 @@ class ActiveLearner:
         return chosen_ones
 
     def diverse_sample(self, n_select, *args, **kwargs):
+        # Load both rgroups and linkers data
         rgroup_df = pd.read_csv('rgroups_clust_df.csv')
-        # linker_df = pd.read_csv('linkers_clustered.csv') # Uncomment if linkers are to be used
-        # TODO add linkers_clust_df.csv
-        dfs = [rgroup_df]  # Add linker_df to the list if needed
-        thresh = 0.6
+        linker_df = pd.read_csv('linkers_clust_df.csv')
+        vl = pd.read_csv('id_h6_rgroups_linkers.csv')
         selected_molecules = []
+        picked_smiles = []
+        # Process each DataFrame separately
+        for df, molecule_type in [(rgroup_df, 'rgroup'), (linker_df, 'linker')]:
+            print(f"Processing {molecule_type} data...")
 
-        for df in dfs:
             clusters = df['cluster'].unique()
-            picked_list = []
-            cluster_dfs = []
+
+
             for cluster in clusters:
                 cluster_df = df[df['cluster'] == cluster]
                 fps = cluster_df['fp'].apply(self.row_to_bitvect).tolist()
 
                 picker = rdSimDivPickers.LeaderPicker()
-                picked_indices = list(picker.LazyBitVectorPick(fps, len(fps), thresh))
-                # for current rgroup/linker libraries 2 mols is fine, since ~10 clusters from each means ~20 mols from
-                # rgroups & linkers, so 20^2 = 400 mols per cycle
-                # different libraries and this will need to be changed
-                fp1 = fps[picked_indices[0]]
-                fp2 = fps[picked_indices[1]]
+                picked_indices = list(picker.LazyBitVectorPick(fps, len(fps), 0.6))
+                fp1, fp2 = (fps[i] for i in picked_indices[:2])
+
+                if molecule_type == 'rgroup':
+                    rid1, rid2 = (cluster_df['rgroup_id'].iloc[i] for i in picked_indices[:2])
+                    print(f"Cluster {cluster}, RGroup IDs: {rid1}, {rid2}")
+                else:  # molecule_type == 'linker'
+                    lid1, lid2 = (cluster_df['SmileIndex'].astype(int).iloc[i] for i in picked_indices[:2])
+                    print(f"Cluster {cluster}, Linker IDs: {lid1}, {lid2}")
 
                 similarity = DataStructs.FingerprintSimilarity(fp1, fp2)
-
-                print(f"for cluster {cluster}: \n picked smiles : {cluster_df['Smiles'].iloc[picked_indices[0]]} and "
-                      f"{cluster_df['Smiles'].iloc[picked_indices[1]]}, "
-                      f"their tanimoto similarity is {similarity}")
-
-                picked_list.append(picked_indices)
-                clust_pick_df = cluster_df.iloc[picked_indices[:2]]
-                cluster_dfs.append(clust_pick_df)
-                print(f'for cluster {cluster} picked {len(picked_indices)} mols')
-                selected_molecules.extend(clust_pick_df)
-
+                print(f"Similarity: {similarity}")
+                picks = picked_indices[:2]
+                clust_pick_df = cluster_df.iloc[picks]
+                selected_molecules.append(clust_pick_df)
 
             # Concatenate all the DataFrames from each cluster into one
-            pick_df = pd.concat(cluster_dfs, ignore_index=True)
+            # contains rgroup_id & linker_id
+            pick_df = pd.concat(selected_molecules, ignore_index=True)
 
-        return pick_df
+
+            # messy concat so dropping nan values to easily loop through
+        non_nan_rgroup_id = pick_df['rgroup_id'].dropna().unique()
+        non_nan_linker_id = pick_df['SmileIndex'].dropna().unique()
+        filtered_rows = []
+
+        for rgroup_id in non_nan_rgroup_id:
+            for smile_index in non_nan_linker_id:
+                # Filter rows where RGroupIndex matches rgroup_id and LinkerIndex matches smile_index
+                filtered_rows = vl[(vl['RGroupIndex'] == rgroup_id) & (vl['LinkerIndex'] == smile_index)]
+                # Append these rows to the picked_smiles DataFrame
+                picked_smiles.append(filtered_rows)
+        picked_smiles_df = pd.concat(picked_smiles, ignore_index=True)
+        start_df = self.virtual_library[self.virtual_library['Smiles'].isin(picked_smiles_df['Smiles'])]
+
+        return start_df
 
 
 

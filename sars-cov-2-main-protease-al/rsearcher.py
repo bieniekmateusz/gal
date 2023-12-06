@@ -310,7 +310,7 @@ if __name__ == '__main__':
     import mal
     from al_for_fep.configs.simple_greedy_gaussian_process import get_config as get_gaussian_process_config
     config = get_gaussian_process_config()
-    initial_chemical_space = "manual_init_h6_rgroups_linkers500.csv"
+    initial_chemical_space = "id_h6_rgroups_linkers.csv"
     config.virtual_library = initial_chemical_space
     config.selection_config.num_elements = 3  # how many new to select
     config.selection_config.selection_columns = ["cnnaffinity", "Smiles", 'h', 'enamine_id', 'enamine_searched']
@@ -371,7 +371,7 @@ if __name__ == '__main__':
             al.add_enamine_molecules(scaffold=scaffold)
 
             # cProfile.run('next_selection = al.get_next_best()', filename='get_next_best.prof', sort=True)
-            next_selection = al.get_next_best()
+            next_selection = al.get_next_best(diverse_start=True)
 
             # select 20 random molecules
             for_submission = [evaluate(scaffold_dask, row.h, row.Smiles, pdb_load) for _, row in next_selection.iterrows()]
