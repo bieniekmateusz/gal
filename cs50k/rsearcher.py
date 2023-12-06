@@ -41,7 +41,7 @@ def dask_parse_feature_smiles_morgan_fingerprint(feature_dataframe, feature_colu
     start = time.time()
 
     # determine the number of connected workers
-    workers_num = client.nthreads().values()
+    workers_num = sum(client.nthreads().values())
 
     # if it is adaptive, set the number of workers to 30
     if client.cluster._adaptive is not None:
