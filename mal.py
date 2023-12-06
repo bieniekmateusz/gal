@@ -51,12 +51,17 @@ class ActiveLearner:
         self.cycle = len(previous_trainings)
         self.cycler = ALCycler(config)
         self.virtual_library = self.cycler.get_virtual_library()
+
+        extra = ''
+        if 'enamine_id' in self.virtual_library.columns:
+            extra = f'Enamines: {len(self.virtual_library[self.virtual_library.enamine_id.notna()])}, '\
+                    f'Enamines Training: {len(self.virtual_library[self.virtual_library.enamine_id.notna() & self.virtual_library.Training == True])}'
         print(f'Launching AL. '
               f'Cycle: {self.cycle}, '
               f'Features: {len(self.virtual_library[self.virtual_library[self.feature].notna()])}, '
-              f'Training: {len(self.virtual_library[self.virtual_library.Training == True])}, '
-              f'Enamines: {len(self.virtual_library[self.virtual_library.enamine_id.notna()])}, '
-              f'Enamines Training: {len(self.virtual_library[self.virtual_library.enamine_id.notna() & self.virtual_library.Training == True])}')
+              f'Training: {len(self.virtual_library[self.virtual_library.Training == True])}, ' +
+              extra
+              )
 
         self.enamine = Enamine()
         self.client = client

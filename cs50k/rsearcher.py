@@ -77,7 +77,7 @@ if __name__ == '__main__':
     initial_chemical_space = "manual_init_h6_rgroups_linkers100_scorable.csv"
     config.virtual_library = initial_chemical_space
     config.selection_config.num_elements = 20  # how many new to select
-    config.selection_config.selection_columns = ["cnnaffinity", "Smiles", 'h', 'enamine_id', 'enamine_searched', 'fid']
+    config.selection_config.selection_columns = ["cnnaffinity", "Smiles", 'h', 'fid']
     feature = 'cnnaffinity'
     config.model_config.targets.params.feature_column = feature
     config.model_config.features.params.fingerprint_size = 2048
@@ -85,7 +85,7 @@ if __name__ == '__main__':
     client = Client(create_cluster())
     print('Client', client)
 
-    # load the chemical space results
+    # load the precomputed chemical space
     oracle = pd.read_csv("cs_scored.csv", index_col="fid", usecols=["fid", "cnnaffinity"])
 
     al = mal.ActiveLearner(config, client)
@@ -94,7 +94,7 @@ if __name__ == '__main__':
         selection = al.get_next_best()
 
         # look up the precomputed values
-        # use our FEgrow ID for identifying the molecules
+        # use our FEgrow ID "fid" to identify each row
         selection.set_index("fid")
         selection['Training'] = True
         results = selection.merge(oracle, on=["fid"])
@@ -102,12 +102,8 @@ if __name__ == '__main__':
         selection.cnnaffinity = -results.cnnaffinity_y.values
         np.testing.assert_array_less(selection.cnnaffinity, 0)
 
-        # assert np.all(chosen_ones.Smiles.values == oracle_has_spoken.Smiles.values)
-
         # update the main library
-        print(al.virtual_library.dtypes)
         al.virtual_library.update(selection)
-        print(al.virtual_library.dtypes)
         al.virtual_library = al.virtual_library.astype({'Training': bool})
 
         al.csv_cycle_summary(selection)
