@@ -5,7 +5,7 @@ import time
 import functools
 
 import dask
-from dask import array
+from dask import array as darray
 from dask.distributed import Client
 from rdkit import Chem
 from rdkit.Chem import AllChem
@@ -40,7 +40,13 @@ def dask_parse_feature_smiles_morgan_fingerprint(feature_dataframe, feature_colu
     print(f"About to compute fingerprints for {len(smiless)} smiles ")
     start = time.time()
 
-    workers_num = max(sum(client.nthreads().values()), 30) # assume minimum 30 workers
+    # determine the number of connected workers
+    workers_num = client.nthreads().values()
+
+    # if it is adaptive, set the number of workers to 30
+    if client.cluster._adaptive is not None:
+        workers_num = max(workers_num, 30)
+
     results = client.compute([compute_fps(fingerprint_radius, fingerprint_size, smiles)
                               for smiles in
                               np.array_split(    # split smiless between the workers
@@ -54,12 +60,12 @@ def dask_tanimito_similarity(a, b):
     print(f"About to compute tanimoto for array lengths {len(a)} and {len(b)}")
     start = time.time()
     chunk_size = 8_000
-    da = array.from_array(a, chunks=chunk_size)
-    db = array.from_array(b, chunks=chunk_size)
-    aa = array.sum(da, axis=1, keepdims=True)
-    bb = array.sum(db, axis=1, keepdims=True)
-    ab = array.matmul(da, db.T)
-    td = array.true_divide(ab, aa + bb.T - ab)
+    da = darray.from_array(a, chunks=chunk_size)
+    db = darray.from_array(b, chunks=chunk_size)
+    aa = darray.sum(da, axis=1, keepdims=True)
+    bb = darray.sum(db, axis=1, keepdims=True)
+    ab = darray.matmul(da, db.T)
+    td = darray.true_divide(ab, aa + bb.T - ab)
     td_computed = td.compute()
     print(f"Computed tanimoto similarity in {time.time() - start:.2f}s for array lengths {len(a)} and {len(b)}")
     return td_computed
