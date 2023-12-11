@@ -17,9 +17,9 @@ cnnaffinity_col_index = cs.columns.get_loc('cnnaffinity')
 for sdf in Path(".").glob("scored/*sdf"):
     sdf_id = int(sdf.stem)
     mol = Chem.SDMolSupplier(str(sdf))[0]
-    sdf_Kd = float(mol.GetProp('cnnaffinity'))
+    cnnaffinity = float(mol.GetProp('cnnaffinity'))
 
-    cs.iloc[sdf_id, cnnaffinity_col_index ] = sdf_Kd
+    cs.iloc[sdf_id, cnnaffinity_col_index ] = cnnaffinity
 
 cs.dropna(inplace=True)
 cs.to_csv("cs_scored.csv")
