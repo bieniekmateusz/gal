@@ -56,15 +56,19 @@ def evaluate(scaffold, h, smiles, protein, gnina_path):
     )
 
     if rmol.GetNumConformers() == 0:
-        raise Exception("No Conformers")
+    	# set a pentalty
+        cnnaffinity = 0
+        cnnaffinityIC50 = 0
+    else:
+	    print(f'TIME opt done: {time.time() - t_start:.1f}s')
+	    rmol.sort_conformers(energy_range=2) # kcal/mol
+	    affinities = rmol.gnina(receptor_file=protein)
+	    cnnaffinity = -affinities.CNNaffinity.values[0]
+	    cnnaffinityIC50 = affinities["CNNaffinity->IC50s"].values[0]
 
-    print(f'TIME opt done: {time.time() - t_start:.1f}s')
-    rmol.sort_conformers(energy_range=2) # kcal/mol
-    affinities = rmol.gnina(receptor_file=protein)
     data = {
-        "cnnaffinity": -affinities.CNNaffinity.values[0],
-        "cnnaffinityIC50": affinities["CNNaffinity->IC50s"].values[0],
-        "hydrogens": [atom.GetIdx() for atom in rmol.GetAtoms() if atom.GetAtomicNum() == 1],
+        "cnnaffinity": cnnaffinity,
+        "cnnaffinityIC50": cnnaffinityIC50
     }
 
     print(f'TIME Completed the molecule generation in {time.time() - t_start:.1f}s.')
@@ -117,7 +121,7 @@ if __name__ == '__main__':
                     print(f'Scored and wrote {index}')
 
             except Exception as E:
-                print(f'ERROR when scoring a molecule {index}. Assigning a penalty. Error: ', E)
+                print(f'ERROR when scoring a molecule {index}. Error: ', E)
                 traceback.print_exc()
 
         print(f'{datetime.datetime.now()}: Left {len(jobs)} to process. ')
