@@ -22,4 +22,5 @@ for sdf in Path(".").glob("scored/*sdf"):
     cs.iloc[sdf_id, cnnaffinity_col_index ] = cnnaffinity
 
 cs.dropna(inplace=True)
-cs.to_csv("cs_scored.csv")
+
+cs.to_csv("cs_scored.csv", index_label='fid')
