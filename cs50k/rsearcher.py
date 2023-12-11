@@ -71,6 +71,54 @@ def dask_tanimito_similarity(a, b):
     return td_computed
 
 
+def get_bay_config():
+    import ml_collections
+    return ml_collections.ConfigDict({
+        'model_config':
+            ml_collections.ConfigDict({
+                'model_type':
+                    'gp',
+                'hyperparameters':
+                    ml_collections.ConfigDict(),
+                'tuning_hyperparameters': [{}],
+                'features':
+                    ml_collections.ConfigDict({
+                        'feature_type': 'fingerprints_and_descriptors',
+                        'params': {
+                            'feature_column': 'Smiles',
+                            'fingerprint_size': 2048,
+                            'fingerprint_radius': 4
+                        }
+                    }),
+                'targets':
+                    ml_collections.ConfigDict({
+                        'feature_type': 'number',
+                        'params': {
+                            'feature_column': 'cnnaffinity',
+                        }
+                    })
+            }),
+        'selection_config':
+            ml_collections.ConfigDict({
+                'selection_type': 'greedy',
+                'hyperparameters': ml_collections.ConfigDict({}),
+                'num_elements': 300,
+                'selection_columns': ['Smiles', 'dG', 'DockingScore']
+            }),
+        'metadata':
+            'test config',
+        'cycle_dir':
+            '',
+        'training_pool':
+            '',
+        'virtual_library':
+            '',
+        'diverse':
+            False,
+        'n_cycles':
+            2,
+    })
+
 if __name__ == '__main__':
     # overwrite internals with Dask methods
     import al_for_fep.data.utils
@@ -80,6 +128,7 @@ if __name__ == '__main__':
     import mal
     from al_for_fep.configs.simple_greedy_gaussian_process import get_config as get_gaussian_process_config
     config = get_gaussian_process_config()
+    # config = get_bay_config()
     initial_chemical_space = "manual_init_h6_rgroups_linkers100_scorable.csv"
     config.virtual_library = initial_chemical_space
     config.selection_config.num_elements = 20  # how many new to select
@@ -95,7 +144,7 @@ if __name__ == '__main__':
     oracle = pd.read_csv("cs_scored.csv", index_col="fid", usecols=["fid", "cnnaffinity"])
 
     al = mal.ActiveLearner(config, client)
-    for iteration in range(3):
+    for iteration in range(5):
         print(f'> Iteration {iteration} finished. Next.')
         selection = al.get_next_best()
 
@@ -104,9 +153,9 @@ if __name__ == '__main__':
         selection.set_index("fid")
         selection['Training'] = True
         results = selection.merge(oracle, on=["fid"])
-        # get the affinities, note that we make them negative for AL
-        selection.cnnaffinity = -results.cnnaffinity_y.values
-        np.testing.assert_array_less(selection.cnnaffinity, 0)
+        # get the affinities
+        selection.cnnaffinity = results.cnnaffinity_y.values
+        np.testing.assert_array_less(selection.cnnaffinity, 0.001)
 
         # update the main library
         al.virtual_library.update(selection)

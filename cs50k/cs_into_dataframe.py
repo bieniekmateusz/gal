@@ -24,3 +24,9 @@ for sdf in Path(".").glob("scored/*sdf"):
 cs.dropna(inplace=True)
 
 cs.to_csv("cs_scored.csv", index_label='fid')
+
+# also update the previous array as to which are scorable and which are not
+cs_full = pd.read_csv('manual_init_h6_rgroups_linkers100.csv', index_col='fid')
+cs_scorable = cs_full[cs_full.index.isin(cs.index)]
+cs_scorable.to_csv('manual_init_h6_rgroups_linkers100_scorable.csv')
+print('hi')
