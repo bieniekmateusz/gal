@@ -24,7 +24,9 @@ import numpy
 import requests
 from pathlib import Path
 
-from rdkit import Chem
+from rdkit import Chem, DataStructs
+from rdkit.DataStructs.cDataStructs import ExplicitBitVect
+from rdkit.SimDivFilters import rdSimDivPickers
 import dask
 
 from al_for_fep.configs.simple_greedy_gaussian_process import get_config as get_gaussian_process_config
@@ -74,14 +76,28 @@ class ActiveLearner:
               f"feature no: {len(self.virtual_library[~self.virtual_library[self.feature].isna()])}, "
               f"<-6 feature: {len(best_finds)}")
 
-    def get_next_best(self, force_random=False, add_enamines=0):
+    def row_to_bitvect(self, row):
+        bit_string = row#''.join(str(int(bit)) for bit in row)
+        bit_vect = DataStructs.CreateFromBitString(bit_string)
+        return ExplicitBitVect(bit_vect.ToBinary())
+        #return DataStructs.ExplicitBitVect.FromBitString(bit_string)
+
+    def get_next_best(self, force_random=False, add_enamines=0, diverse_start=False):
         self.cycle += 1
 
         # pick random molecules
         rows_not_yet_computed = self.virtual_library[~self.virtual_library[self.feature].notnull()]
         if len(rows_not_yet_computed) == len(self.virtual_library) or force_random:
-            print("Selecting random molecules to study. ")
-            chosen_ones = rows_not_yet_computed.sample(self.cycler._cycle_config.selection_config.num_elements)
+            if diverse_start:
+                # TODO retrieve mols from chemical space with these rgroups by finding all smiles that were created \
+                #  from these rgroup IDs (ID is currently nan)
+
+                print("Using diverse initial molecules. ")
+                chosen_ones = self.diverse_sample(rows_not_yet_computed, \
+                                                  self.cycler._cycle_config.selection_config.num_elements)
+            else:
+                print("Selecting random molecules to study. ")
+                chosen_ones = rows_not_yet_computed.sample(self.cycler._cycle_config.selection_config.num_elements)
         else:
             start_time = time.time()
             chosen_ones, virtual_library_regression = self.cycler.run_cycle(self.virtual_library)
@@ -95,6 +111,67 @@ class ActiveLearner:
                 chosen_ones = pd.concat([chosen_ones, enamines])
 
         return chosen_ones
+
+    def diverse_sample(self, n_select, *args, **kwargs):
+        # Load both rgroups and linkers data
+        rgroup_df = pd.read_csv('rgroups_clust_df.csv')
+        linker_df = pd.read_csv('linkers_clust_df.csv')
+        vl = pd.read_csv('id_h6_rgroups_linkers.csv')
+        selected_molecules = []
+        picked_smiles = []
+        # Process each DataFrame separately
+        for df, molecule_type in [(rgroup_df, 'rgroup'), (linker_df, 'linker')]:
+            print(f"Processing {molecule_type} data...")
+
+            clusters = df['cluster'].unique()
+
+
+            for cluster in clusters:
+                cluster_df = df[df['cluster'] == cluster]
+                fps = cluster_df['fp'].apply(self.row_to_bitvect).tolist()
+
+                picker = rdSimDivPickers.LeaderPicker()
+                picked_indices = list(picker.LazyBitVectorPick(fps, len(fps), 0.6))
+                fp1, fp2 = (fps[i] for i in picked_indices[:2])
+
+                if molecule_type == 'rgroup':
+                    rid1, rid2 = (cluster_df['rgroup_id'].iloc[i] for i in picked_indices[:2])
+                    print(f"Cluster {cluster}, RGroup IDs: {rid1}, {rid2}")
+                else:  # molecule_type == 'linker'
+                    lid1, lid2 = (cluster_df['SmileIndex'].astype(int).iloc[i] for i in picked_indices[:2])
+                    print(f"Cluster {cluster}, Linker IDs: {lid1}, {lid2}")
+
+                similarity = DataStructs.FingerprintSimilarity(fp1, fp2)
+                print(f"Similarity: {similarity}")
+                picks = picked_indices[:2]
+                clust_pick_df = cluster_df.iloc[picks]
+                selected_molecules.append(clust_pick_df)
+
+            # Concatenate all the DataFrames from each cluster into one
+            # contains rgroup_id & linker_id
+            pick_df = pd.concat(selected_molecules, ignore_index=True)
+
+
+            # messy concat so dropping nan values to easily loop through
+        non_nan_rgroup_id = pick_df['rgroup_id'].dropna().unique()
+        non_nan_linker_id = pick_df['SmileIndex'].dropna().unique()
+        filtered_rows = []
+
+        for rgroup_id in non_nan_rgroup_id:
+            for smile_index in non_nan_linker_id:
+                # Filter rows where RGroupIndex matches rgroup_id and LinkerIndex matches smile_index
+                filtered_rows = vl[(vl['RGroupIndex'] == rgroup_id) & (vl['LinkerIndex'] == smile_index)]
+                # Append these rows to the picked_smiles DataFrame
+                picked_smiles.append(filtered_rows)
+        picked_smiles_df = pd.concat(picked_smiles, ignore_index=True)
+        start_df = self.virtual_library[self.virtual_library['Smiles'].isin(picked_smiles_df['Smiles'])]
+
+        return start_df
+
+
+
+
+
 
     def set_feature_result(self, smiles, value):
         self.virtual_library.loc[self.virtual_library.Smiles == smiles,
