@@ -26,6 +26,7 @@ from rdkit.Chem import AllChem
 from rdkit.Chem import Descriptors
 import openmm.app
 import pandas as pd
+import ml_collections
 
 import fegrow
 
@@ -142,6 +143,50 @@ def dask_tanimito_similarity(a, b):
     print(f"Computed tanimoto similarity in {time.time() - start:.2f}s for array lengths {len(a)} and {len(b)}")
     return td_computed
 
+def get_config():
+  return ml_collections.ConfigDict({
+      'model_config':
+          ml_collections.ConfigDict({
+              'model_type':
+                  'gp',
+              'hyperparameters':
+                  ml_collections.ConfigDict(),
+                  'tuning_hyperparameters': [{'beta': 0.1}], # 0 ~= greedy, 0.1 = exploit,  10 = explore
+              'features':
+                  ml_collections.ConfigDict({
+                      'feature_type': 'fingerprint',
+                      'params': {
+                          'feature_column': 'Smiles',
+                          'fingerprint_size': 2048,
+                          'fingerprint_radius': 4
+                      }
+                  }),
+              'targets':
+                  ml_collections.ConfigDict({
+                      'feature_type': 'number',
+                      'params': {
+                          'feature_column': 'dG',
+                      }
+                  })
+          }),
+      'selection_config':
+          ml_collections.ConfigDict({
+              'selection_type': 'UCB',      # greedy / uncertainty based
+              'hyperparameters': ml_collections.ConfigDict({}),
+              'num_elements': 200,						# n mols per cycle
+              'selection_columns': ['Smiles', 'dG', 'DockingScore']
+          }),
+      'metadata':
+          'Small test for active learning.',
+      'cycle_dir':
+          '',
+      'training_pool':
+          '',
+      'virtual_library':
+          '',
+      'diverse':
+      	  True,				# initial diverse set
+  })
 
 if __name__ == '__main__':
     # overwrite internals with Dask methods
@@ -150,8 +195,7 @@ if __name__ == '__main__':
     al_for_fep.models.sklearn_gaussian_process_model._tanimoto_similarity = dask_tanimito_similarity
 
     import mal
-    from al_for_fep.configs.simple_greedy_gaussian_process import get_config as get_gaussian_process_config
-    config = get_gaussian_process_config()
+    config = get_config()
     initial_chemical_space = "manual_init_h6_rgroups_linkers500.csv"
     config.virtual_library = initial_chemical_space
     config.selection_config.num_elements = 200  # how many new to select
@@ -209,7 +253,7 @@ if __name__ == '__main__':
 
             # for the best scoring molecules, add molecules from Enamine that are similar
             # this way we ensure that the Enamine molecules will be evaluated
-            al.add_enamine_molecules(scaffold=scaffold)
+            # al.add_enamine_molecules(scaffold=scaffold)
 
             # cProfile.run('next_selection = al.get_next_best()', filename='get_next_best.prof', sort=True)
             next_selection = al.get_next_best()
