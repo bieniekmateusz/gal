@@ -147,45 +147,38 @@ def get_config():
   return ml_collections.ConfigDict({
       'model_config':
           ml_collections.ConfigDict({
-              'model_type':
-                  'gp',
-              'hyperparameters':
-                  ml_collections.ConfigDict(),
-                  'tuning_hyperparameters': [{'beta': 0.1}], # 0 ~= greedy, 0.1 = exploit,  10 = explore
+              'model_type': 'gp',
+              'hyperparameters': ml_collections.ConfigDict(),
+              'tuning_hyperparameters': ml_collections.ConfigDict(),
               'features':
                   ml_collections.ConfigDict({
                       'feature_type': 'fingerprint',
                       'params': {
                           'feature_column': 'Smiles',
                           'fingerprint_size': 2048,
-                          'fingerprint_radius': 4
+                          'fingerprint_radius': 3
                       }
                   }),
               'targets':
                   ml_collections.ConfigDict({
                       'feature_type': 'number',
                       'params': {
-                          'feature_column': 'dG',
+                          'feature_column': 'cnnaffinity',
                       }
                   })
           }),
       'selection_config':
           ml_collections.ConfigDict({
               'selection_type': 'UCB',      # greedy / uncertainty based
-              'hyperparameters': ml_collections.ConfigDict({}),
+              'hyperparameters': ml_collections.ConfigDict({"beta": 0.1}), # 0 ~= greedy, 0.1 = exploit,  10 = explore
               'num_elements': 200,						# n mols per cycle
-              'selection_columns': ['Smiles', 'dG', 'DockingScore']
+              'selection_columns': ["cnnaffinity", "Smiles", 'h', 'enamine_id', 'enamine_searched']
           }),
-      'metadata':
-          'Small test for active learning.',
-      'cycle_dir':
-          '',
-      'training_pool':
-          '',
-      'virtual_library':
-          '',
-      'diverse':
-      	  True,				# initial diverse set
+      'metadata': 'Small test for active learning.',
+      'cycle_dir': '',
+      'training_pool': '',
+      'virtual_library': '',
+      'diverse': True,				# initial diverse set
   })
 
 if __name__ == '__main__':
@@ -196,13 +189,9 @@ if __name__ == '__main__':
 
     import mal
     config = get_config()
-    initial_chemical_space = "manual_init_h6_rgroups_linkers500.csv"
-    config.virtual_library = initial_chemical_space
-    config.selection_config.num_elements = 200  # how many new to select
-    config.selection_config.selection_columns = ["cnnaffinity", "Smiles", 'h', 'enamine_id', 'enamine_searched']
+    config.virtual_library = "manual_init_h6_rgroups_linkers500.csv"    #   initial_chemical_space
     feature = 'cnnaffinity'
     config.model_config.targets.params.feature_column = feature
-    config.model_config.features.params.fingerprint_size = 2048
 
     pdb_filename = dask.delayed(str(Path('rec_final.pdb').absolute()))
     scaffold = Chem.SDMolSupplier('5R83_core.sdf', removeHs=False)[0]
