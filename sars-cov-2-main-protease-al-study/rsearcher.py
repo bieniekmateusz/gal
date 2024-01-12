@@ -224,8 +224,8 @@ if __name__ == '__main__':
                 score = float(rmol_data[feature])
                 print("Success: molecule evaluated. ")
             except Exception as E:
-                print('ERROR when scoring. Assigning a penalty. Error: ', E)
-                score = 0 # penalty
+                log.warning("Failed to evaluate the molecule. Assigning the penalty 0.", E)
+                score = 0   # penalty
 
             al.virtual_library.loc[al.virtual_library.Smiles == smiles, [feature, 'Training']] = score, True
 
