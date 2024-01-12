@@ -58,7 +58,7 @@ def evaluate(scaffold, h, smiles, pdb_filename, gnina_path):
     scaffold = scaffold_m.GetMol()
     rmol._save_template(scaffold)
 
-    rmol.generate_conformers(num_conf=50, minimum_conf_rms=0.2)
+    rmol.generate_conformers(num_conf=50, minimum_conf_rms=0.5)
     rmol.remove_clashing_confs(pdb_filename)
 
     rmol.optimise_in_receptor(
@@ -154,7 +154,7 @@ if __name__ == '__main__':
     config = get_gaussian_process_config()
     initial_chemical_space = "manual_init_h6_rgroups_linkers500.csv"
     config.virtual_library = initial_chemical_space
-    config.selection_config.num_elements = 5  # how many new to select
+    config.selection_config.num_elements = 200  # how many new to select
     config.selection_config.selection_columns = ["cnnaffinity", "Smiles", 'h', 'enamine_id', 'enamine_searched']
     feature = 'cnnaffinity'
     config.model_config.targets.params.feature_column = feature
@@ -209,7 +209,7 @@ if __name__ == '__main__':
 
             # for the best scoring molecules, add molecules from Enamine that are similar
             # this way we ensure that the Enamine molecules will be evaluated
-            # al.add_enamine_molecules(scaffold=scaffold)
+            al.add_enamine_molecules(scaffold=scaffold)
 
             # cProfile.run('next_selection = al.get_next_best()', filename='get_next_best.prof', sort=True)
             next_selection = al.get_next_best()
