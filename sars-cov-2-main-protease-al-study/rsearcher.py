@@ -52,6 +52,9 @@ def evaluate(scaffold, h, smiles, pdb_filename, gnina_path):
     params.removeHs = False  # keep the hydrogens
     rmol = fegrow.RMol(Chem.MolFromSmiles(smiles, params=params))
 
+    if "FG_DEBUG" in os.environ:
+        return rmol, {"cnnaffinity": -10}
+
     # remove the h
     scaffold = copy.deepcopy(scaffold)
     scaffold_m = Chem.EditableMol(scaffold)
@@ -78,7 +81,7 @@ def evaluate(scaffold, h, smiles, pdb_filename, gnina_path):
     rmol.sort_conformers(energy_range=2) # kcal/mol
     affinities = rmol.gnina(receptor_file=pdb_filename)
     data = {
-        "cnnaffinity": -affinities.CNNaffinity.values[0],
+        "cnnaffinity": -max(affinities.CNNaffinity),
         "filename": Chem.MolToSmiles(Chem.RemoveHs(rmol)),
     }
 
@@ -94,7 +97,6 @@ def get_saving_queue():
         while True:
             mol = mol_saving_queue.get()
             filename = mol.GetProp("filename")
-
             with Chem.SDWriter(f'structures/{filename}.sdf') as SD:
                 SD.write(mol)
                 print(f'Wrote {filename}')
@@ -224,7 +226,8 @@ if __name__ == '__main__':
                 score = float(rmol_data[feature])
                 print("Success: molecule evaluated. ")
             except Exception as E:
-                log.warning("Failed to evaluate the molecule. Assigning the penalty 0.", E)
+                log.warning("Failed to evaluate the molecule. Assigning the penalty 0. "
+                            "Error: " + str(E.with_traceback()))
                 score = 0   # penalty
 
             al.virtual_library.loc[al.virtual_library.Smiles == smiles, [feature, 'Training']] = score, True
@@ -242,7 +245,7 @@ if __name__ == '__main__':
 
             # for the best scoring molecules, add molecules from Enamine that are similar
             # this way we ensure that the Enamine molecules will be evaluated
-            # al.add_enamine_molecules(scaffold=scaffold)
+            al.add_enamine_molecules(scaffold=scaffold)
 
             # cProfile.run('next_selection = al.get_next_best()', filename='get_next_best.prof', sort=True)
             next_selection = al.get_next_best()

@@ -31,6 +31,7 @@ from al_for_fep.configs.simple_greedy_gaussian_process import get_config as get_
 import ncl_cycle
 from ncl_cycle import ALCycler
 from enamine import Enamine
+import enamine_REST
 
 class ActiveLearner:
     def __init__(self, config, client, initial_values=pd.DataFrame()):
@@ -122,7 +123,7 @@ class ActiveLearner:
         return False, None
 
 
-    def add_enamine_molecules(self, scaffold, limit=300):
+    def add_enamine_molecules_old(self, scaffold):
         """
         For the best scoring molecules that were grown,
         check if there are similar molecules in Enamine REAL database,
@@ -190,6 +191,7 @@ class ActiveLearner:
         new_enamines = similar[~similar.id.isin(vl.enamine_id)]
 
         # fixme: automate creating empty dataframes. Allow to configure default values initially.
+        raise Exception('add unique IDs each time') # fixme
         new_enamines_df = pd.DataFrame({'Smiles': new_enamines.hitSmiles,
                                self.feature: numpy.nan,
                                'h': vl.h[0], # fixme: for now assume that only one vector is used
@@ -198,7 +200,92 @@ class ActiveLearner:
                                'Training': False })
 
         print("Adding: ", len(new_enamines_df))
-        self.virtual_library = pd.concat([self.virtual_library, new_enamines_df], ignore_index=True)
+        self.virtual_library = pd.concat([self.virtual_library, new_enamines_df],
+                                         ignore_index=False)
+
+    def add_enamine_molecules(self, scaffold, best_cutoff=100):
+        """
+        For the best scoring molecules that were grown,
+        check if there are similar molecules in Enamine REAL database,
+        if they are, add them to the dataset.
+
+        @number: The maximum number of molecules that
+            should be added from the Enamine REAL database.
+        @scaffold: The scaffold molecule that has to be present in the search.
+            If None, the requirement will be ignored.
+        @best_cutoff: How many best performing molecules to consider in the query. There is currently a 30 seconds wait in between each call.
+        """
+
+        # get the best performing molecules
+        vl = self.virtual_library.sort_values(by='cnnaffinity')
+        best_vl_for_searching = vl[:best_cutoff]
+
+        # nothing to search for yet
+        if len(best_vl_for_searching[~best_vl_for_searching.cnnaffinity.isna()]) == 0:
+            return
+
+        if len(set(best_vl_for_searching.h)) > 1:
+            raise NotImplementedError('Multiple growth vectors are used. ')
+
+        # filter out previously queried molecules
+        new_searches = best_vl_for_searching[best_vl_for_searching.enamine_searched == False]
+
+
+        start = time.time()
+        print('Querying Enamine REAL. ')
+        dfs = []
+        for smiles in list(new_searches.Smiles):
+            df = enamine_REST.search(smiles, "REALDB", "SMARTS", "SIM", 100, 0.1)
+            dfs.append(df)
+            # well well well
+            time.sleep(30)
+
+        results = pd.concat([df for df in dfs if len(df) > 0])
+        results.drop_duplicates(subset='code', inplace=True)
+        print(f"Enamine returned with {len(results)} rows in {time.time() - start:.1f}s.")
+
+        # prepare the scaffold for testing its presence
+        # specifically, the hydrogen was replaced and has to be removed
+        # for now we assume we only are growing one vector at a time - fixme
+        scaffold_noh = Chem.EditableMol(scaffold)
+        scaffold_noh.RemoveAtom(int(best_vl_for_searching.iloc[0].h))
+        dask_scaffold = dask.delayed(scaffold_noh.GetMol())
+
+        start = time.time()
+        # protonate and check for scaffold
+        delayed_protonations = [ActiveLearner._obabel_protonate(smi.rsplit(maxsplit=1)[0])
+                            for smi in results.smile.values]
+        jobs = self.client.compute([ActiveLearner._scaffold_check(smih, dask_scaffold)
+                                             for smih in delayed_protonations])
+        scaffold_test_results = [job.result() for job in jobs]
+        scaffold_mask = [r[0] for r in scaffold_test_results]
+        # smiles None means that the molecule did not have our scaffold
+        protonated_smiles = [r[1] for r in scaffold_test_results if r[1] is not None]
+        print(f"Dask obabel protonation + scaffold test finished in {time.time() - start:.2f}s.")
+        print(f"Tested scaffold presence. Kept {sum(scaffold_mask)}/{len(scaffold_mask)}.")
+
+        if len(scaffold_mask) > 0:
+            similar = results[scaffold_mask]
+            similar.hitSmiles = protonated_smiles
+        else:
+            similar = pd.DataFrame(columns=results.columns)
+
+        # filter out Enamine molecules which are already present in our dataset
+        new_enamines = similar[~similar.code.isin(vl.enamine_id)]
+
+        # fixme: automate creating empty dataframes. Allow to configure default values initially.
+        new_enamines_df = pd.DataFrame({'Smiles': new_enamines.smile,
+                               self.feature: numpy.nan,
+                               'h': vl.h[0], # fixme: for now assume that only one vector is used
+                               'enamine_id': new_enamines.code,
+                               'enamine_searched': False,
+                               'Training': False })
+        library_max_index = max(self.virtual_library.index)
+        new_enamines_df.index = range(library_max_index + 1, library_max_index + len(new_enamines_df) + 1)
+
+        print("Adding: ", len(new_enamines_df))
+        self.virtual_library = pd.concat([self.virtual_library, new_enamines_df],
+                                         ignore_index=False)
 
     def csv_cycle_summary(self, chosen_ones):
         cycle_dir = Path(f"generated/cycle_{self.cycle:04d}")
