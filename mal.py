@@ -75,14 +75,33 @@ class ActiveLearner:
               f"feature no: {len(self.virtual_library[~self.virtual_library[self.feature].isna()])}, "
               f"<-6 feature: {len(best_finds)}")
 
-    def get_next_best(self, force_random=False, add_enamines=0):
+    @staticmethod
+    def _compute_fp_from_smiles_for_diversity(smiles, radius=3, size=2048):
+        mol = Chem.MolFromSmiles(smiles)
+        return Chem.AllChem.GetMorganFingerprintAsBitVect(mol, radius=radius, nBits=size)
+
+
+    def get_next_best(self, diversity=True, force_random=False, add_enamines=0):
         self.cycle += 1
 
         # pick random molecules
         rows_not_yet_computed = self.virtual_library[~self.virtual_library[self.feature].notnull()]
-        if len(rows_not_yet_computed) == len(self.virtual_library) or force_random:
-            print("Selecting random molecules to study. ")
+        if force_random:
             chosen_ones = rows_not_yet_computed.sample(self.cycler._cycle_config.selection_config.num_elements)
+        elif len(rows_not_yet_computed) == len(self.virtual_library):
+            if diversity:
+                print("Selecting molecules using the MaxMinPicker diversity picker. ")
+                from rdkit.SimDivFilters import rdSimDivPickers
+                picker = rdSimDivPickers.MaxMinPicker()
+
+                # compute fingerprints with dask
+                fingerprints = self.client.compute([ActiveLearner._compute_fp_from_smiles_for_diversity(smi)
+                                                   for smi in rows_not_yet_computed.Smiles])
+                diverse_indices = list(picker.LazyBitVectorPick(fingerprints, len(fingerprints), self.cycler._cycle_config.selection_config.num_elements, seed=30))
+                chosen_ones = rows_not_yet_computed.iloc[diverse_indices]
+            else:
+                print("Selecting random molecules to study. ")
+                chosen_ones = rows_not_yet_computed.sample(self.cycler._cycle_config.selection_config.num_elements)
         else:
             start_time = time.time()
             chosen_ones, virtual_library_regression = self.cycler.run_cycle(self.virtual_library)
