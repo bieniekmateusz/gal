@@ -91,6 +91,9 @@ class Enamine:
         except requests.exceptions.JSONDecodeError as E:
             warnings.warn("Parsing molecules from a hitlist  has failed due to: " + str(E))
             return
+        except KeyError as E:
+            warnings.warn("Could not access the key: " + str(E))
+            return
 
         # expand the first column
         df1 = pd.DataFrame([row[0] for row in reply_data])
