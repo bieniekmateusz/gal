@@ -77,7 +77,7 @@ class Enamine:
 
     @staticmethod
     def parse_hitlist_results(response, *args, **kwargs):
-        response.enamine_results = list()
+        response.enamine_results = [pd.DataFrame({})]
         try:
             if not response.json()["recordsTotal"]:
                 warnings.warn(f'There are {response.json()["recordsTotal"]} hits in the reply')
@@ -106,7 +106,7 @@ class Enamine:
     @staticmethod
     def parse_lookup_query(response, *args, **kwargs):
         # set the results to be empty in case something goes wrong
-        response.enamine_results = list()
+        response.enamine_results = [pd.DataFrame({})]
 
         hit_list_id = set()
         try:
@@ -130,7 +130,6 @@ class Enamine:
             # occasionally the returned results are empty
             return
 
-        enamine_results = []
         for hit_id in hit_list_id:
             params = {"hlid": hit_id, "start": 0, "length": 100, "draw": 0}
             params = {**params, **Enamine.VALID_COLUMNS}
@@ -144,8 +143,7 @@ class Enamine:
             )
 
             # return the reply back by attaching it to the response
-            enamine_results.append(response_molecules.enamine_results)
-        response.enamine_results = enamine_results
+            response.enamine_results.append(response_molecules.enamine_results)
 
     @staticmethod
     def get_molecules(smiles):
