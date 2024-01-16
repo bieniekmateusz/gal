@@ -130,20 +130,22 @@ class Enamine:
             # occasionally the returned results are empty
             return
 
-        assert len(hit_list_id) == 1, hit_list_id
-        params = {"hlid": hit_list_id.pop(), "start": 0, "length": 100, "draw": 0}
-        params = {**params, **Enamine.VALID_COLUMNS}
+        enamine_results = []
+        for hit_id in hit_list_id:
+            params = {"hlid": hit_id, "start": 0, "length": 100, "draw": 0}
+            params = {**params, **Enamine.VALID_COLUMNS}
 
-        response_molecules: requests.Response = Enamine.session.get(
-            url='https://sw.docking.org/search/view',
-            params=params,
-            stream=True,
-            timeout=60,  # seconds
-            hooks={"response": Enamine.parse_hitlist_results}
-        )
+            response_molecules: requests.Response = Enamine.session.get(
+                url='https://sw.docking.org/search/view',
+                params=params,
+                stream=True,
+                timeout=60,  # seconds
+                hooks={"response": Enamine.parse_hitlist_results}
+            )
 
-        # return the reply back by attaching it to the response
-        response.enamine_results = response_molecules.enamine_results
+            # return the reply back by attaching it to the response
+            enamine_results.append(response_molecules.enamine_results)
+        response.enamine_results = enamine_results
 
     @staticmethod
     def get_molecules(smiles):
@@ -154,7 +156,7 @@ class Enamine:
             timeout=60,  # seconds
             hooks={'response': Enamine.parse_lookup_query}
             )
-        return reply.enamine_results
+        return pd.concat(reply.enamine_results)
 
     def close(self):
         Enamine.session.close()
