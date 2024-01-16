@@ -142,7 +142,7 @@ class ActiveLearner:
         return False, None
 
 
-    def add_enamine_molecules_old(self, scaffold):
+    def add_enamine_molecules(self, scaffold):
         """
         For the best scoring molecules that were grown,
         check if there are similar molecules in Enamine REAL database,
@@ -210,19 +210,20 @@ class ActiveLearner:
         new_enamines = similar[~similar.id.isin(vl.enamine_id)]
 
         # fixme: automate creating empty dataframes. Allow to configure default values initially.
-        raise Exception('add unique IDs each time') # fixme
         new_enamines_df = pd.DataFrame({'Smiles': new_enamines.hitSmiles,
                                self.feature: numpy.nan,
                                'h': vl.h[0], # fixme: for now assume that only one vector is used
                                'enamine_id': new_enamines.id,
                                'enamine_searched': False,
                                'Training': False })
+        library_max_index = max(self.virtual_library.index)
+        new_enamines_df.index = range(library_max_index + 1, library_max_index + len(new_enamines_df) + 1)
 
         print("Adding: ", len(new_enamines_df))
         self.virtual_library = pd.concat([self.virtual_library, new_enamines_df],
                                          ignore_index=False)
 
-    def add_enamine_molecules(self, scaffold, best_cutoff=100):
+    def add_enamine_molecules_REST(self, scaffold, best_cutoff=100):
         """
         For the best scoring molecules that were grown,
         check if there are similar molecules in Enamine REAL database,
