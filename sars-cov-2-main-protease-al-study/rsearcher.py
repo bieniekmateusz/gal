@@ -227,7 +227,7 @@ if __name__ == '__main__':
                 print("Success: molecule evaluated. ")
             except Exception as E:
                 log.warning("Failed to evaluate the molecule. Assigning the penalty 0. "
-                            "Error: " + str(E.with_traceback()))
+                            "Error: " + str(E))
                 score = 0   # penalty
 
             al.virtual_library.loc[al.virtual_library.Smiles == smiles, [feature, 'Training']] = score, True
