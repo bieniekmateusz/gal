@@ -70,7 +70,7 @@ class Enamine:
         retries = Retry(
             total=3,
             backoff_factor=0.1,
-            status_forcelist=[500, 502],
+            status_forcelist=[500, 502, 504],
             allowed_methods={'GET'},
         )
         Enamine.session.mount('https://', HTTPAdapter(max_retries=retries))
@@ -162,7 +162,7 @@ class Enamine:
     def close(self):
         Enamine.session.close()
 
-    def search_smiles(self, smiles: Iterable[str], remove_duplicates=False, max_workers=10):
+    def search_smiles(self, smiles: Iterable[str], remove_duplicates=False, max_workers=5):
         """
         Search
         Args:
