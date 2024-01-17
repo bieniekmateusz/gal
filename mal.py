@@ -64,7 +64,6 @@ class ActiveLearner:
               extra
               )
 
-        self.enamine = Enamine()
         self.client = client
 
     def report(self):
@@ -174,7 +173,8 @@ class ActiveLearner:
         start = time.time()
         print('Querying Enamine REAL. ')
         try:
-            results: pd.DataFrame = self.enamine.search_smiles(smiles_to_search, remove_duplicates=True)
+            enamine = Enamine()
+            results: pd.DataFrame = enamine.search_smiles(smiles_to_search, remove_duplicates=True)
         except requests.exceptions.HTTPError as HTTPError:
             print("Enamine API call failed. ", HTTPError)
             return

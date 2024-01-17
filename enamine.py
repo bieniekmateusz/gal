@@ -60,8 +60,9 @@ class Enamine:
     VALID_COLUMN_NAMES = [v for p, v in VALID_COLUMNS.items() if '[name]' in p]
 
     # specify the database
-    SEARCH_PARAMS = {'db': 'REAL-Database-22Q1.smi.anon', 'dist': 5, 'tdn': 6, 'rdn': 6, 'rup': 2, 'ldn': 2, 'lup': 2,
-                     'maj': 6, 'min': 6, 'sub': 6, 'sdist': 12, 'tup': 6, 'scores': 'Atom Alignment,ECFP4,Daylight'}
+    SEARCH_PARAMS = [('db', 'REAL-Database-22Q1.smi.anon'), ('dist', 5), ('tdn', 6), ('rdn', 6), ('rup', 2),
+                     ('ldn', 2), ('lup', 2), ('maj', 6), ('min', 6), ('sub', 6), ('sdist', 12), ('tup', 6),
+                     ('scores', 'Atom Alignment,ECFP4,Daylight')]
 
     def __init__(self):
         Enamine.session = requests.Session()
@@ -152,7 +153,7 @@ class Enamine:
     def get_molecules(smiles):
         reply: requests.Response = Enamine.session.get(
             url='https://sw.docking.org/search/submit',
-            params={**Enamine.SEARCH_PARAMS, 'smi': smiles},
+            params=Enamine.SEARCH_PARAMS +  [('smi', smiles)],
             stream=True,
             timeout=60,  # seconds
             hooks={'response': Enamine.parse_lookup_query}
@@ -174,6 +175,9 @@ class Enamine:
 
         """
         start = time.time()
+
+        # mols = Enamine.get_molecules(smiles)
+        # print('hi')
         with ThreadPoolExecutor(max_workers=max_workers) as pool:
             dfs = list(pool.map(Enamine.get_molecules, smiles))
 
