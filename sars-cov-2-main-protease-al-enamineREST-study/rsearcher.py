@@ -173,7 +173,7 @@ def get_config():
           ml_collections.ConfigDict({
               'selection_type': 'UCB',      # greedy / uncertainty based
               'hyperparameters': ml_collections.ConfigDict({"beta": 0.1}), # 0 ~= greedy, 0.1 = exploit,  10 = explore
-              'num_elements': 5,						# n mols per cycle
+              'num_elements': 200,						# n mols per cycle
               'selection_columns': ["cnnaffinity", "Smiles", 'h', 'enamine_id', 'enamine_searched']
           }),
       'metadata': 'Small test for active learning.',
@@ -245,7 +245,7 @@ if __name__ == '__main__':
 
             # for the best scoring molecules, add molecules from Enamine that are similar
             # this way we ensure that the Enamine molecules will be evaluated
-            al.add_enamine_molecules(scaffold=scaffold)
+            al.add_enamine_molecules_REST(scaffold=scaffold)
 
             # cProfile.run('next_selection = al.get_next_best()', filename='get_next_best.prof', sort=True)
             next_selection = al.get_next_best()
