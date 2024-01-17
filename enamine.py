@@ -135,7 +135,7 @@ class Enamine:
             return
 
         for hit_id in hit_list_id:
-            params = {"hlid": hit_id, "start": 0, "length": 100, "draw": 0}
+            params = {"hlid": hit_id, "start": 0, "length": 2000, "draw": 0}
             params = {**params, **Enamine.VALID_COLUMNS}
 
             response_molecules: requests.Response = Enamine.session.get(
@@ -153,7 +153,7 @@ class Enamine:
     def get_molecules(smiles):
         reply: requests.Response = Enamine.session.get(
             url='https://sw.docking.org/search/submit',
-            params=Enamine.SEARCH_PARAMS +  [('smi', smiles)],
+                params=Enamine.SEARCH_PARAMS +  [('smi', smi) for smi in smiles],
             stream=True,
             timeout=60,  # seconds
             hooks={'response': Enamine.parse_lookup_query}
@@ -176,12 +176,12 @@ class Enamine:
         """
         start = time.time()
 
-        # mols = Enamine.get_molecules(smiles)
-        # print('hi')
-        with ThreadPoolExecutor(max_workers=max_workers) as pool:
-            dfs = list(pool.map(Enamine.get_molecules, smiles))
+        # batch smiles together and query the server 20 miles per call
+        from more_itertools import chunked
 
-        mols = pd.concat([df for df in dfs if len(df) > 0])
+        dfs = [Enamine.get_molecules(batch) for batch in chunked(smiles, 20)]
+
+        mols = pd.concat(dfs)
 
         if remove_duplicates:
             mols.drop_duplicates(subset='id', inplace=True)
