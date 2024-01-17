@@ -78,7 +78,7 @@ class Enamine:
 
     @staticmethod
     def parse_hitlist_results(response, *args, **kwargs):
-        response.enamine_results = [pd.DataFrame({})]
+        response.enamine_results = pd.DataFrame({})
         try:
             if not response.json()["recordsTotal"]:
                 warnings.warn(f'There are {response.json()["recordsTotal"]} hits in the reply')
