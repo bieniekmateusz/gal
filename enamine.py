@@ -18,6 +18,10 @@ from requests.adapters import HTTPAdapter
 
 
 class Enamine:
+
+    # Use this Class variable to relay settings for static methods
+    RESULTS_PER_SEARCH = 100
+
     # columns necessary for downloading the data from https://sw.docking.org/search/view
     VALID_COLUMNS = {'columns[0][data]': '0', 'columns[0][name]': 'alignment', 'columns[0][searchable]': 'true',
         'columns[0][orderable]': 'false', 'columns[0][search][value]': '', 'columns[0][search][regex]': 'false',
@@ -135,7 +139,7 @@ class Enamine:
             return
 
         for hit_id in hit_list_id:
-            params = {"hlid": hit_id, "start": 0, "length": 2000, "draw": 0}
+            params = {"hlid": hit_id, "start": 0, "length": Enamine.RESULTS_PER_SEARCH, "draw": 0}
             params = {**params, **Enamine.VALID_COLUMNS}
 
             response_molecules: requests.Response = Enamine.session.get(
@@ -212,6 +216,17 @@ class Enamine:
     def get_molecules(smiles):
         reply: requests.Response = Enamine.session.get(
             url='https://sw.docking.org/search/submit',
+                params=Enamine.SEARCH_PARAMS +  [('smi', smiles)],
+            stream=True,
+            timeout=60,  # seconds
+            hooks={'response': Enamine.parse_lookup_query}
+            )
+        return pd.concat(reply.enamine_results)
+
+    @staticmethod
+    def get_molecules_batch(smiles):
+        reply: requests.Response = Enamine.session.get(
+            url='https://sw.docking.org/search/submit',
                 params=Enamine.SEARCH_PARAMS +  [('smi', smi) for smi in smiles],
             stream=True,
             timeout=60,  # seconds
@@ -259,6 +274,36 @@ class Enamine:
         Returns:
 
         """
+
+        # set this to be used later in the calls
+        Enamine.RESULTS_PER_SEARCH = 100
+
+        start = time.time()
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            dfs = list(pool.map(Enamine.get_molecules, smiles))
+
+        mols = pd.concat(dfs)
+
+        if remove_duplicates:
+            mols.drop_duplicates(subset='id', inplace=True)
+
+        print(f"Found {len(mols)} in {time.time() - start}")
+        return mols
+
+    def search_smiles_batch(self, smiles: Iterable[str], remove_duplicates=False, max_workers=5):
+        """
+        Search
+        Args:
+            smiles: a bag of smiles that you'd like to search for
+            remove_duplicates: ensure the found Smiles are unique. If the same Smiles were found with different query smiles,
+                remove the duplicates. This means you will not be able to recover which Smiles led to
+
+        Returns:
+
+        """
+        # for each smile search take 100 smiles
+        Enamine.RESULTS_PER_SEARCH = 20_000
+
         start = time.time()
 
         # batch smiles together and query the server 20 miles per call
