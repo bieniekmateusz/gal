@@ -263,7 +263,7 @@ class Enamine:
         print(f"Found {len(mols)} in {time.time() - start}")
         return mols
 
-    def search_smiles(self, smiles: Iterable[str], remove_duplicates=False, max_workers=5):
+    def search_smiles(self, smiles: Iterable[str], remove_duplicates=False, max_workers=1):
         """
         Search
         Args:
