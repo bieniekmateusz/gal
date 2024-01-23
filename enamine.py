@@ -15,11 +15,13 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from urllib3.util import Retry
 from requests.adapters import HTTPAdapter
+import atexit
 
 
 class Enamine:
 
     # Use this Class variable to relay settings for static methods
+    _session = None
     RESULTS_PER_SEARCH = 100
 
     # columns necessary for downloading the data from https://sw.docking.org/search/view
@@ -69,7 +71,12 @@ class Enamine:
                      ('scores', 'Atom Alignment,ECFP4,Daylight')]
 
     def __init__(self):
-        Enamine.session = requests.Session()
+        self._init_session_request()
+        atexit.register(self._close_enamine_session)
+
+    @staticmethod
+    def _init_session_request():
+        Enamine._session = requests.Session()
 
         # add retries, the server fails sometimes which appears to be internal crashes
         retries = Retry(
@@ -78,7 +85,17 @@ class Enamine:
             status_forcelist=[500, 502, 504],
             allowed_methods={'GET'},
         )
-        Enamine.session.mount('https://', HTTPAdapter(max_retries=retries))
+        Enamine._session.mount('https://', HTTPAdapter(max_retries=retries))
+
+    def __enter__(self):
+        Enamine._init_session_request()
+        return self
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._close_enamine_session()
+
+    def _close_enamine_session(self):
+        if Enamine._session is not None:
+            Enamine._session.close()
 
     @staticmethod
     def parse_hitlist_results(response, *args, **kwargs):
@@ -142,7 +159,7 @@ class Enamine:
             params = {"hlid": hit_id, "start": 0, "length": Enamine.RESULTS_PER_SEARCH, "draw": 0}
             params = {**params, **Enamine.VALID_COLUMNS}
 
-            response_molecules: requests.Response = Enamine.session.get(
+            response_molecules: requests.Response = Enamine._session.get(
                 url='https://sw.docking.org/search/view',
                 params=params,
                 stream=True,
@@ -187,7 +204,7 @@ class Enamine:
 
     @staticmethod
     def get_molecules_v2(smiles):
-        reply: requests.Response = Enamine.session.get(
+        reply: requests.Response = Enamine._session.get(
             url='https://sw.docking.org/search/view',
                 params=[('db', 'REAL-Database-22Q1.smi.anon'),
                         ('dist', 5),
@@ -214,7 +231,7 @@ class Enamine:
 
     @staticmethod
     def get_molecules(smiles):
-        reply: requests.Response = Enamine.session.get(
+        reply: requests.Response = Enamine._session.get(
             url='https://sw.docking.org/search/submit',
                 params=Enamine.SEARCH_PARAMS +  [('smi', smiles)],
             stream=True,
@@ -225,7 +242,7 @@ class Enamine:
 
     @staticmethod
     def get_molecules_batch(smiles):
-        reply: requests.Response = Enamine.session.get(
+        reply: requests.Response = Enamine._session.get(
             url='https://sw.docking.org/search/submit',
                 params=Enamine.SEARCH_PARAMS +  [('smi', smi) for smi in smiles],
             stream=True,
@@ -235,7 +252,7 @@ class Enamine:
         return pd.concat(reply.enamine_results)
 
     def close(self):
-        Enamine.session.close()
+        Enamine._session.close()
 
     def search_smiles_v2(self, smiles: Iterable[str], remove_duplicates=False, max_workers=5):
         """
