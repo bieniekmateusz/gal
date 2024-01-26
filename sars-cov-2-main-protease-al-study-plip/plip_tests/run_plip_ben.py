@@ -149,24 +149,21 @@ def plip_score(ref_set, var_set):
     # Ensure DataFrames have only one column
     assert len(ref_df.columns) == 1 and len(var_df.columns) == 1, "DataFrames should have only one column"
 
-    # Compute intersection
-    common_elements = len(ref_set.intersection(var_set))
+    # intersection
+    common_elements_no= len(ref_set.intersection(var_set))
 
-    # Compute the total number of elements in the reference set
-    total_elements = len(ref_set)
-
-    if total_elements == 0:
+    if len(ref_set) == 0:
         return 0  # Edge case: both sets are empty
 
     # Calculate Tanimoto similarity
-    tanimoto_similarity = common_elements / total_elements
+    tanimoto_similarity = common_elements_no / (len(ref_set) + len(var_df) - common_elements_no)
 
     return tanimoto_similarity
 
 # xstal interactions from 24 mpro fragments
 xstal_interaction_list = [   'hbond_ASN_142_O2',
                              'hbond_ASN_142_O3',
-                             'hbond_CYS_145_O3',
+                             'hbond_CYS_145_O3', #
                              'hbond_CYS_44_O2',
                              'hbond_GLN_189_O2',
                              'hbond_GLN_189_O3',
@@ -229,7 +226,7 @@ with tempfile.TemporaryDirectory() as TD:
 
     system = protein + lig
     complex_path = os.path.join(TD, "complex.pdb")
-    system.save(complex_path)
+    system.save(complex_path, renumber=False)
 
     data = residue_interactions(complex_path, 0)
 
@@ -238,3 +235,27 @@ with tempfile.TemporaryDirectory() as TD:
     data_interactions = set(plip_dict.keys())
 
     plip_score(xstal_set, data_interactions) * 50  # HYPERPARAM TO CHANGE
+
+
+with tempfile.TemporaryDirectory() as TD:
+    lig = parmed.load_file("7l10_lig.sdf")[0]
+    protein = parmed.load_file("7l10_sup_prot.pdb")
+
+    system = protein + lig
+    complex_path = os.path.join(TD, "complex.pdb")
+    system.save(complex_path, renumber=False)
+
+    data = residue_interactions(complex_path, 0)
+
+    plip_dict = gen_intrns_dict(data)
+
+    data_interactions = set(plip_dict.keys())
+
+    plip_score(xstal_set, data_interactions) * 50  # HYPERPARAM TO CHANGE
+
+
+# as the last exercise, run directly on the original input data:
+data = residue_interactions("5r83.pdb", 0)
+plip_dict = gen_intrns_dict(data)
+data_interactions = set(plip_dict.keys())
+plip_score(xstal_set, data_interactions) * 50  # HYPERPARAM TO CHANGE
