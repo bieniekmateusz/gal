@@ -83,7 +83,7 @@ def evaluate(scaffold, h, smiles, pdb_filename, gnina_path):
     affinities = rmol.gnina(receptor_file=pdb_filename)
     data = {
         "cnnaffinity": -max(affinities.CNNaffinity),
-        "filename": Chem.MolToSmiles(rmol),
+        "filename": Chem.MolToSmiles(rmol, allHsExplicit=True),
     }
 
     print(f'TIME Completed the molecule generation in {time.time() - t_start:.1f}s.')
