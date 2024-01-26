@@ -40,8 +40,7 @@ def create_df_from_binding_site(selected_site_interactions, interaction_type="hb
     ]
 
     if interaction_type not in valid_types:
-        print("!!! Wrong interaction type specified. Hbond is chosen by default!!!\n")
-        interaction_type = "hbond"
+        raise ValueError("!!! Wrong interaction type specified. Hbond is chosen by default!!!\n")
 
     df = pd.DataFrame.from_records(
         # data is stored AFTER the column names
@@ -49,16 +48,18 @@ def create_df_from_binding_site(selected_site_interactions, interaction_type="hb
         # column names are always the first element
         columns=selected_site_interactions[interaction_type][0],
     )
+
     return df
 
-def residue_interactions(pdb_id, site):
+def residue_interactions(pdb_id):
     interactions_by_site = retrieve_plip_interactions(f"{pdb_id}")
+
     index_of_selected_site = 0
     selected_site = list(interactions_by_site.keys())[index_of_selected_site]
     # print(selected_site)
     dfs = []
     valid_types = [
-        #            "hydrophobic",
+        "hydrophobic",
         "hbond",
         "waterbridge",
         "saltbridge",
@@ -98,14 +99,16 @@ def retrieve_plip_interactions(pdb_file):
     dict :
         A dictionary of the binding sites and the interactions.
     """
-    protlig = PDBComplex()
-    protlig.load_pdb(pdb_file)  # load the pdb file
-    for ligand in protlig.ligands:
-        protlig.characterize_complex(ligand)  # find ligands and analyze interactions
-    sites = {}
+    complex = PDBComplex()
+    complex.load_pdb(pdb_file)
+    for ligand in complex.ligands:
+        complex.characterize_complex(ligand)
+
     # loop over binding sites
-    for key, site in sorted(protlig.interaction_sets.items()):
-        binding_site = BindingSiteReport(site)  # collect data about interactions
+    sites = {}
+    for key, site in sorted(complex.interaction_sets.items()):
+        binding_site = BindingSiteReport(site)
+
         # tuples of *_features and *_info will be converted to pandas DataFrame
         keys = (
             "hydrophobic",
@@ -117,6 +120,7 @@ def retrieve_plip_interactions(pdb_file):
             "halogen",
             "metal",
         )
+
         # interactions is a dictionary which contains relevant information for each
         # of the possible interactions: hydrophobic, hbond, etc. in the considered
         # binding site. Each interaction contains a list with
@@ -220,42 +224,94 @@ def gen_intrns_dict(interactions):
     return interaction_dict
 
 # write to an sdf
-with tempfile.TemporaryDirectory() as TD:
-    lig = parmed.load_file("structures/CC(C)(C)OC(=O)NC(=O)Sc1cccnc1.sdf")[0]
-    protein = parmed.load_file("../rec_final.pdb", structure=True)
+# with tempfile.TemporaryDirectory() as TD:
+#     lig = parmed.load_file("structures/CC(C)(C)OC(=O)NC(=O)Sc1cccnc1.sdf")[0]
+#     protein = parmed.load_file("../rec_final.pdb", structure=True)
+#
+#     system = protein + lig
+#     complex_path = os.path.join(TD, "complex.pdb")
+#     system.save(complex_path, renumber=False)
+#
+#     data = residue_interactions(complex_path, 0)
+#
+#     plip_dict = gen_intrns_dict(data)
+#
+#     data_interactions = set(plip_dict.keys())
+#
+#     plip_score(xstal_set, data_interactions) * 50  # HYPERPARAM TO CHANGE
 
-    system = protein + lig
-    complex_path = os.path.join(TD, "complex.pdb")
-    system.save(complex_path, renumber=False)
 
-    data = residue_interactions(complex_path, 0)
-
-    plip_dict = gen_intrns_dict(data)
-
-    data_interactions = set(plip_dict.keys())
-
-    plip_score(xstal_set, data_interactions) * 50  # HYPERPARAM TO CHANGE
-
-
-with tempfile.TemporaryDirectory() as TD:
-    lig = parmed.load_file("7l10_lig.sdf")[0]
-    protein = parmed.load_file("7l10_sup_prot.pdb")
-
-    system = protein + lig
-    complex_path = os.path.join(TD, "complex.pdb")
-    system.save(complex_path, renumber=False)
-
-    data = residue_interactions(complex_path, 0)
-
-    plip_dict = gen_intrns_dict(data)
-
-    data_interactions = set(plip_dict.keys())
-
-    plip_score(xstal_set, data_interactions) * 50  # HYPERPARAM TO CHANGE
-
+# with tempfile.TemporaryDirectory() as TD:
+#     lig = parmed.load_file("7l10_lig.sdf")[0]
+#     protein = parmed.load_file("7l10_sup_prot.pdb")
+#
+#     system = protein + lig
+#     complex_path = os.path.join(TD, "complex.pdb")
+#     system.save(complex_path, renumber=False)
+#
+#     data = residue_interactions(complex_path, 0)
+#     plip_dict = gen_intrns_dict(data)
+#     data_interactions = set(plip_dict.keys())
+#     plip_score(xstal_set, data_interactions) * 50  # HYPERPARAM TO CHANGE
+#
+# # confirm the previous selections
+# data = residue_interactions("full_sess.pdb", 0)
+# plip_dict = gen_intrns_dict(data)
+# data_interactions = set(plip_dict.keys())
+# plip_score(xstal_set, data_interactions) * 50  # HYPERPARAM TO CHANGE
 
 # as the last exercise, run directly on the original input data:
-data = residue_interactions("5r83.pdb", 0)
-plip_dict = gen_intrns_dict(data)
-data_interactions = set(plip_dict.keys())
-plip_score(xstal_set, data_interactions) * 50  # HYPERPARAM TO CHANGE
+# data = residue_interactions("5r83.pdb", 0)
+# plip_dict = gen_intrns_dict(data)
+# data_interactions = set(plip_dict.keys())
+# plip_score(xstal_set, data_interactions) * 50  # HYPERPARAM TO CHANGE
+
+
+# ok code it
+print('hi')
+# from plip.structure.preparation import PDBComplex
+# my_mol = PDBComplex()
+# my_mol.load_pdb(complex_path) # Load the PDB file into PLIP class
+# print(my_mol) # Shows name of structure and ligand binding sites
+# my_bsid = 'E20:A:2001' # Unique binding site identifier (HetID:Chain:Position)
+# my_mol.analyze()
+# assert len(my_mol.interaction_sets) == 1
+#
+# # take all the interactions
+# all_interactions = list(my_mol.interaction_sets.values())[0]
+
+def gen_plip_fingerprint(complex_path):
+    my_mol = PDBComplex()
+    my_mol.load_pdb(complex_path) # Load the PDB file into PLIP class
+    my_mol.analyze()
+
+    # assert there is only one ligand for now
+    if len(my_mol.interaction_sets) != 1:
+        raise ValueError("PLIP detected more (or less) than one ligand?!")
+    binding_site = BindingSiteReport(list(my_mol.interaction_sets.values())[0])
+
+    # take all the interactions
+    all_interactions = list(my_mol.interaction_sets.values())[0]
+    print('hi')
+    pass
+
+contacts = set()
+for complex_path in Path("extracting_reference").glob("*pdb"):
+    plip_fp = gen_plip_fingerprint(str(complex_path))
+    print('hi')
+    # plip_score(xstal_set, data_interactions) * 50  # HYPERPARAM TO CHANGE
+
+
+# contacts = set()
+# for complex_path in Path("extracting_reference").glob("*pdb"):
+#     data = residue_interactions(str(complex_path), 0)
+#     plip_dict = gen_intrns_dict(data)
+#     data_interactions = set(plip_dict.keys())
+#     print(data_interactions)
+#     contacts = contacts.union(data_interactions)
+#     # plip_score(xstal_set, data_interactions) * 50  # HYPERPARAM TO CHANGE
+# contacts = list(contacts)
+# contacts.sort(key=lambda r: [int(r.split('_')[2]), r.split('_')[0]])
+# print('final')
+# print(contacts)
+
