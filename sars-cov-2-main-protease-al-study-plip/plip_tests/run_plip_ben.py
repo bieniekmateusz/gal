@@ -5,6 +5,7 @@ from pathlib import Path
 
 import parmed
 from plip.structure.preparation import PDBComplex
+from rdkit import Chem
 
 
 # xstal interactions from 24 mpro fragments
@@ -39,6 +40,14 @@ mpro_crystal_structures_interactions = {'hacceptor_THR_25_8',
 
 def plip_mpro_merge_score(protein, ligand):
     with tempfile.TemporaryDirectory() as TD:
+
+        # turn the rdkit.Mol into an SDF file
+        if isinstance(ligand, Chem.Mol):
+            ligand_path = os.path.join(TD, "ligand.sdf")
+            with Chem.SDWriter(ligand_path) as SD:
+                SD.write(ligand)
+                ligand = ligand_path
+
         lig = parmed.load_file(ligand)
         if isinstance(lig, list):
             warnings.warn("The ligand was an array (SDF?). Using the first frame. ")
@@ -100,7 +109,8 @@ def plip_mpro_score(complex_path):
 
 
 if __name__ == "__main__":
-    fp, tanimoto_score = plip_mpro_merge_score("7l10_sup_prot.pdb", "7l10_lig.sdf")
+    ligand = Chem.SDMolSupplier("7l10_lig.sdf")[0]
+    fp, tanimoto_score = plip_mpro_merge_score("7l10_sup_prot.pdb", ligand)
 
     contacts = set()
     for complex_path in Path("extracting_reference").glob("*pdb"):
