@@ -1,11 +1,9 @@
 import warnings
-
-import plip
-import parmed
 import tempfile
 import os
-from rdkit import Chem
 from pathlib import Path
+
+import parmed
 from plip.structure.preparation import PDBComplex
 
 
@@ -106,12 +104,10 @@ if __name__ == "__main__":
 
     contacts = set()
     for complex_path in Path("extracting_reference").glob("*pdb"):
-
         plip_fp, tanimoto_distance = plip_mpro_score(str(complex_path))
         contacts = contacts.union(set(plip_fp))
 
-
-# contacts = list(contacts)
-# contacts.sort(key=lambda r: [int(r.split('_')[2]), r.split('_')[0], r.split('_')[1]])
-# print(contacts)
+    contacts = list(contacts)
+    contacts.sort(key=lambda r: [int(r.split('_')[2]), r.split('_')[0], r.split('_')[1]])
+    print(contacts)
 
