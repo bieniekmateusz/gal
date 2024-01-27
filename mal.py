@@ -156,11 +156,11 @@ class ActiveLearner:
         """
 
         # get the best performing molecules
-        vl = self.virtual_library.sort_values(by='cnnaffinity')
+        vl = self.virtual_library.sort_values(by=self.feature)
         best_vl_for_searching = vl[:100]
 
         # nothing to search for yet
-        if len(best_vl_for_searching[~best_vl_for_searching.cnnaffinity.isna()]) == 0:
+        if len(best_vl_for_searching[~best_vl_for_searching[self.feature].isna()]) == 0:
             return
 
         if len(set(best_vl_for_searching.h)) > 1:
@@ -237,11 +237,11 @@ class ActiveLearner:
         """
 
         # get the best performing molecules
-        vl = self.virtual_library.sort_values(by='cnnaffinity')
+        vl = self.virtual_library.sort_values(by=self.feature)
         best_vl_for_searching = vl[:best_cutoff]
 
         # nothing to search for yet
-        if len(best_vl_for_searching[~best_vl_for_searching.cnnaffinity.isna()]) == 0:
+        if len(best_vl_for_searching[~best_vl_for_searching[self.feature].isna()]) == 0:
             return
 
         if len(set(best_vl_for_searching.h)) > 1:
