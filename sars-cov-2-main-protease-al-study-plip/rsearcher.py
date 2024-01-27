@@ -153,9 +153,6 @@ def evaluate(scaffold, h, smiles, pdb_filename, gnina_path):
     params.removeHs = False  # keep the hydrogens
     rmol = fegrow.RMol(Chem.MolFromSmiles(smiles, params=params))
 
-    if "FG_DEBUG" in os.environ:
-        return rmol, {"cnnaffinity": -10}
-
     # remove the h
     scaffold = copy.deepcopy(scaffold)
     scaffold_m = Chem.EditableMol(scaffold)
@@ -277,8 +274,8 @@ def get_config():
       'selection_config':
           ml_collections.ConfigDict({
               'selection_type': 'UCB',      # greedy / uncertainty based
-              'hyperparameters': ml_collections.ConfigDict({"beta": 0.1}), # 0 ~= greedy, 0.1 = exploit,  10 = explore
-              'num_elements': 5,						# n mols per cycle
+              'hyperparameters': ml_collections.ConfigDict({"beta": 10}), # 0 ~= greedy, 0.1 = exploit,  10 = explore
+              'num_elements': 200,						# n mols per cycle
               'selection_columns': ["cnnaffinity", "Smiles", 'h', 'enamine_id', 'enamine_searched']
           }),
       'metadata': 'Small test for active learning.',
