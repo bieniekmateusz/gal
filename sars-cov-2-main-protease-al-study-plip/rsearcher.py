@@ -276,7 +276,7 @@ def get_config():
               'selection_type': 'UCB',      # greedy / uncertainty based
               'hyperparameters': ml_collections.ConfigDict({"beta": 10}), # 0 ~= greedy, 0.1 = exploit,  10 = explore
               'num_elements': 200,						# n mols per cycle
-              'selection_columns': ["cnnaffinity", "Smiles", 'h', 'enamine_id', 'enamine_searched']
+              'selection_columns': ["plip", "Smiles", 'h', 'enamine_id', 'enamine_searched']
           }),
       'metadata': 'Small test for active learning.',
       'cycle_dir': '',
@@ -294,7 +294,7 @@ if __name__ == '__main__':
     import mal
     config = get_config()
     config.virtual_library = "manual_init_h6_rgroups_linkers500.csv"    #   initial_chemical_space
-    feature = 'cnnaffinity'
+    feature = 'plip'
     config.model_config.targets.params.feature_column = feature
 
     pdb_filename = dask.delayed(str(Path('rec_final.pdb').absolute()))
