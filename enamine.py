@@ -107,7 +107,8 @@ class Enamine:
 
             reply_data = response.json()['data']
             if not reply_data:
-                raise Exception('There is no `data` in the reply!')
+                warnings.warn('There is no `data` in the reply!')
+                return
         except requests.exceptions.ChunkedEncodingError:
             pass
         except requests.exceptions.JSONDecodeError as E:
