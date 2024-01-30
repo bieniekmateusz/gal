@@ -279,7 +279,7 @@ def get_config():
           ml_collections.ConfigDict({
               'selection_type': 'UCB',      # greedy / uncertainty based
               'hyperparameters': ml_collections.ConfigDict({"beta": 10}), # 0 ~= greedy, 0.1 = exploit,  10 = explore
-              'num_elements': 5,						# n mols per cycle
+              'num_elements': 200,						# n mols per cycle
               'selection_columns': ["combo1", "Smiles", 'h', 'enamine_id', 'enamine_searched']
           }),
       'metadata': 'Small test for active learning.',
