@@ -189,7 +189,7 @@ def evaluate(scaffold, h, smiles, pdb_filename, gnina_path):
         "filename": Chem.MolToSmiles(rmol, allHsExplicit=True),
         # (CNN/MW) * (PLIP/0.3) * 100
         # note that we make it negative, the lower the better,
-        "combo1": -(gnina_affinity.CNNaffinity[0]/MW) * (max(ifp_score, 0.000001)/0.3) * 100
+        "combo1": -(gnina_affinity.CNNaffinity[0]/MW) * (ifp_score/0.3) * 100
     }
 
     print(f'TIME Completed the molecule generation in {time.time() - t_start:.1f}s.')
